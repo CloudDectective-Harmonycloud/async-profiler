@@ -15,6 +15,9 @@
  */
 
 #include <string.h>
+#include <cstdlib>
+#include <ctime>
+#include <sys/time.h>
 #include "lockTracer.h"
 #include "profiler.h"
 #include "tsc.h"
@@ -40,6 +43,8 @@ Error LockTracer::start(Arguments& args) {
 
     // Enable Java Monitor events
     jvmtiEnv* jvmti = VM::jvmti();
+    jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_MONITOR_WAIT, NULL);
+    jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_MONITOR_WAITED, NULL);
     jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_MONITOR_CONTENDED_ENTER, NULL);
     jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_MONITOR_CONTENDED_ENTERED, NULL);
     _start_time = TSC::ticks();
@@ -55,6 +60,8 @@ Error LockTracer::start(Arguments& args) {
 void LockTracer::stop() {
     // Disable Java Monitor events
     jvmtiEnv* jvmti = VM::jvmti();
+    jvmti->SetEventNotificationMode(JVMTI_DISABLE, JVMTI_EVENT_MONITOR_WAIT, NULL);
+    jvmti->SetEventNotificationMode(JVMTI_DISABLE, JVMTI_EVENT_MONITOR_WAITED, NULL);
     jvmti->SetEventNotificationMode(JVMTI_DISABLE, JVMTI_EVENT_MONITOR_CONTENDED_ENTER, NULL);
     jvmti->SetEventNotificationMode(JVMTI_DISABLE, JVMTI_EVENT_MONITOR_CONTENDED_ENTERED, NULL);
 
@@ -100,12 +107,22 @@ void LockTracer::initialize() {
     _initialized = true;
 }
 
+void JNICALL LockTracer::MonitorWait(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, jlong timeout) {
+    printLockInfo("MonitorWait", jvmti, env, thread, object);
+}
+
+void JNICALL LockTracer::MonitorWaited(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, jboolean timed_out) {
+    printLockInfo("MonitorWaited", jvmti, env, thread, object);
+}
+
 void JNICALL LockTracer::MonitorContendedEnter(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object) {
+    printLockInfo("MonitorContendedEnter", jvmti, env, thread, object);
     jlong enter_time = TSC::ticks();
     jvmti->SetTag(thread, enter_time);
 }
 
 void JNICALL LockTracer::MonitorContendedEntered(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object) {
+    printLockInfo("MonitorContendedEntered", jvmti, env, thread, object);
     jlong entered_time = TSC::ticks();
     jlong enter_time;
     jvmti->GetTag(thread, &enter_time);
@@ -139,11 +156,14 @@ void JNICALL LockTracer::UnsafeParkHook(JNIEnv* env, jobject instance, jboolean 
     if (park_blocker != NULL) {
         park_start_time = TSC::ticks();
     }
-
+    jthread thread;
+    jvmti->GetCurrentThread(&thread);
+    printLockInfo("UnsafeParkHookBeforePark", jvmti, env, thread, park_blocker);
     _orig_Unsafe_park(env, instance, isAbsolute, time);
 
     if (park_blocker != NULL) {
         park_end_time = TSC::ticks();
+        printLockInfo("UnsafeParkHookAfterPark", jvmti, env, thread, park_blocker);
         if (park_end_time - park_start_time >= _threshold) {
             char* lock_name = getLockName(jvmti, env, park_blocker);
             if (lock_name == NULL || isConcurrentLock(lock_name)) {
@@ -170,6 +190,26 @@ char* LockTracer::getLockName(jvmtiEnv* jvmti, JNIEnv* env, jobject lock) {
         return NULL;
     }
     return class_name;
+}
+
+void LockTracer::printLockInfo(std::string event_name, jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, bool hasStack) {
+    jvmtiThreadInfo thread_info;
+    jlong java_thread_id = 0;
+    int native_thread_id = VMThread::nativeThreadId(env, thread);
+    if (native_thread_id >= 0 && jvmti->GetThreadInfo(thread, &thread_info) == 0) {
+        java_thread_id = VMThread::javaThreadId(env, thread);
+    }
+
+    char* lock_name = getLockName(jvmti, env, object);
+    timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    char buff[100];
+    strftime(buff, sizeof buff, "%D %T", std::gmtime(&ts.tv_sec));
+    printf("%s.%09ld UTC %s: threadName=%s, javaThreadId=%ld, nativeThreadId=%d, lockName=%s\n", buff,
+    ts.tv_nsec, event_name.data(), thread_info.name, java_thread_id, native_thread_id, lock_name);
+    
+    jvmti->Deallocate((unsigned char*)lock_name);
+    jvmti->Deallocate((unsigned char*)thread_info.name);
 }
 
 bool LockTracer::isConcurrentLock(const char* lock_name) {

@@ -45,6 +45,7 @@ class LockTracer : public Engine {
 
     static jobject getParkBlocker(jvmtiEnv* jvmti, JNIEnv* env);
     static char* getLockName(jvmtiEnv* jvmti, JNIEnv* env, jobject lock);
+    static void printLockInfo(std::string event_name, jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, bool hasStack);
     static bool isConcurrentLock(const char* lock_name);
     static void recordContendedLock(int event_type, u64 start_time, u64 end_time,
                                     const char* lock_name, jobject lock, jlong timeout);
@@ -62,6 +63,8 @@ class LockTracer : public Engine {
     Error start(Arguments& args);
     void stop();
 
+    static void JNICALL MonitorWait(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, jlong timeout);
+    static void JNICALL MonitorWaited(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, jboolean timed_out);
     static void JNICALL MonitorContendedEnter(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object);
     static void JNICALL MonitorContendedEntered(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object);
 };

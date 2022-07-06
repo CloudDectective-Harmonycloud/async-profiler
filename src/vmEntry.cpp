@@ -200,6 +200,8 @@ bool VM::init(JavaVM* vm, bool attach) {
     callbacks.DynamicCodeGenerated = Profiler::DynamicCodeGenerated;
     callbacks.ThreadStart = Profiler::ThreadStart;
     callbacks.ThreadEnd = Profiler::ThreadEnd;
+    callbacks.MonitorWait = LockTracer::MonitorWait;
+    callbacks.MonitorWaited = LockTracer::MonitorWaited;
     callbacks.MonitorContendedEnter = LockTracer::MonitorContendedEnter;
     callbacks.MonitorContendedEntered = LockTracer::MonitorContendedEntered;
     callbacks.VMObjectAlloc = J9ObjectSampler::VMObjectAlloc;
