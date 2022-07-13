@@ -20,7 +20,16 @@
 #include <jvmti.h>
 #include "arch.h"
 #include "engine.h"
+#include "lockRecorder.h"
 
+enum LockEventType {
+    LOCK_MONITOR_WAIT,
+    LOCK_MONITOR_WAITED,
+    LOCK_MONITOR_ENTER,
+    LOCK_MONITOR_ENTERED,
+    LOCK_BEFORE_PARK,
+    LOCK_AFTER_PARK,
+};
 
 typedef jint (JNICALL *RegisterNativesFunc)(JNIEnv*, jclass, const JNINativeMethod*, jint);
 typedef void (JNICALL *UnsafeParkFunc)(JNIEnv*, jobject, jboolean, jlong);
@@ -35,6 +44,8 @@ class LockTracer : public Engine {
     static jmethodID _getBlocker;
     static bool _initialized;
 
+    static LockRecorder* _lockRecorder;
+
     static void initialize();
 
     static RegisterNativesFunc _orig_RegisterNatives;
@@ -45,7 +56,7 @@ class LockTracer : public Engine {
 
     static jobject getParkBlocker(jvmtiEnv* jvmti, JNIEnv* env);
     static char* getLockName(jvmtiEnv* jvmti, JNIEnv* env, jobject lock);
-    static void printLockInfo(std::string event_name, jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, bool hasStack);
+    static void printLockInfo(LockEventType event_type, jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, jlong timestamp, bool hasStack);
     static bool isConcurrentLock(const char* lock_name);
     static void recordContendedLock(int event_type, u64 start_time, u64 end_time,
                                     const char* lock_name, jobject lock, jlong timeout);
@@ -67,6 +78,7 @@ class LockTracer : public Engine {
     static void JNICALL MonitorWaited(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, jboolean timed_out);
     static void JNICALL MonitorContendedEnter(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object);
     static void JNICALL MonitorContendedEntered(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object);
+    static void printStack(jvmtiEnv* jvmti, jthread thread);
 };
 
 #endif // _LOCKTRACER_H
