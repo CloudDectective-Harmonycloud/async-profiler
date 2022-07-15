@@ -7,27 +7,38 @@
 
 using namespace std;
 
+bool filter(LockWaitEvent* event);
+
 class LockRecorder {
   public:
     LockRecorder() {
-        _locked_thread_map = new map<jobject, LockWaitEvent*>();
-        _wait_lock_map = new map<jobject, map<jint, LockWaitEvent*>*>();
+        _has_stack = false;
+        _locked_thread_map = new map<uintptr_t, LockWaitEvent*>();
+        _wait_lock_map = new map<uintptr_t, map<jint, LockWaitEvent*>*>();
     }
 
     ~LockRecorder() {
+        reset();
         delete _locked_thread_map;
         delete _wait_lock_map;
     }
 
-    void updateWaitLockThread(jobject lock_object, jint thread_id, string thread_name, jlong wait_timestamp);
-    void updateWakeThread(jobject lock_object, jint thread_id, string thread_name, jlong wake_timestamp);
-
+    void updateWaitLockThread(LockWaitEvent* event);
+    void updateWakeThread(uintptr_t lock_address, jint thread_id, string thread_name, jlong wake_timestamp);
+    
+    // reset is used to clear the maps when the logTracer stops.
+    void reset();
+    bool isRecordStack() {
+        return _has_stack;
+    }
   private:
-    map<jobject, LockWaitEvent*>* _locked_thread_map;
-    map<jobject, map<jint, LockWaitEvent*>*>* _wait_lock_map;
+    bool _has_stack;
 
-    void recordLockedThread(jobject lock_object, LockWaitEvent* event);
-    jint findContendedThreads(jobject lock_object);
+    map<uintptr_t, LockWaitEvent*>* _locked_thread_map;
+    map<uintptr_t, map<jint, LockWaitEvent*>*>* _wait_lock_map;
+
+    void recordLockedThread(uintptr_t lock_address, LockWaitEvent* event);
+    jint findContendedThreads(uintptr_t lock_address, jint thread_id);
 };
 
 #endif // _LOCKRECORDER_H

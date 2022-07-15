@@ -42,6 +42,7 @@ Error LockTracer::start(Arguments& args) {
         initialize();
     }
 
+    EventLogger::open("/dev/null");
     // Enable Java Monitor events
     jvmtiEnv* jvmti = VM::jvmti();
     jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_MONITOR_WAIT, NULL);
@@ -71,8 +72,9 @@ void LockTracer::stop() {
         bindUnsafePark(_orig_Unsafe_park);
     }
     if (_lockRecorder != NULL) {
-        delete _lockRecorder;
+        _lockRecorder->reset();
     }
+    EventLogger::close();
 }
 
 void LockTracer::initialize() {
@@ -113,22 +115,22 @@ void LockTracer::initialize() {
 }
 
 void JNICALL LockTracer::MonitorWait(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, jlong timeout) {
-    printLockInfo(LOCK_MONITOR_WAIT, jvmti, env, thread, object, TSC::ticks(), true);
+    recordLockInfo(LOCK_MONITOR_WAIT, jvmti, env, thread, object, currentTimestamp());
 }
 
 void JNICALL LockTracer::MonitorWaited(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, jboolean timed_out) {
-    printLockInfo(LOCK_MONITOR_WAITED, jvmti, env, thread, object, TSC::ticks(), true);
+    recordLockInfo(LOCK_MONITOR_WAITED, jvmti, env, thread, object, currentTimestamp());
 }
 
 void JNICALL LockTracer::MonitorContendedEnter(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object) {
     jlong enter_time = TSC::ticks();
-    printLockInfo(LOCK_MONITOR_ENTER, jvmti, env, thread, object, enter_time, true);
+    recordLockInfo(LOCK_MONITOR_ENTER, jvmti, env, thread, object, currentTimestamp());
     jvmti->SetTag(thread, enter_time);
 }
 
 void JNICALL LockTracer::MonitorContendedEntered(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object) {
     jlong entered_time = TSC::ticks();
-    printLockInfo(LOCK_MONITOR_ENTERED, jvmti, env, thread, object, entered_time, true);
+    recordLockInfo(LOCK_MONITOR_ENTERED, jvmti, env, thread, object, currentTimestamp());
     jlong enter_time;
     jvmti->GetTag(thread, &enter_time);
 
@@ -157,18 +159,18 @@ void JNICALL LockTracer::UnsafeParkHook(JNIEnv* env, jobject instance, jboolean 
     jvmtiEnv* jvmti = VM::jvmti();
     jobject park_blocker = _enabled ? getParkBlocker(jvmti, env) : NULL;
     jlong park_start_time, park_end_time;
-
+    jthread thread;
     if (park_blocker != NULL) {
         park_start_time = TSC::ticks();
+        jvmti->GetCurrentThread(&thread);
+        recordLockInfo(LOCK_BEFORE_PARK, jvmti, env, thread, park_blocker, currentTimestamp());
     }
-    jthread thread;
-    jvmti->GetCurrentThread(&thread);
-    printLockInfo(LOCK_BEFORE_PARK, jvmti, env, thread, park_blocker, park_start_time, true);
+
     _orig_Unsafe_park(env, instance, isAbsolute, time);
 
     if (park_blocker != NULL) {
+        recordLockInfo(LOCK_AFTER_PARK, jvmti, env, thread, park_blocker, currentTimestamp());
         park_end_time = TSC::ticks();
-        printLockInfo(LOCK_AFTER_PARK, jvmti, env, thread, park_blocker, park_end_time, true);
         if (park_end_time - park_start_time >= _threshold) {
             char* lock_name = getLockName(jvmti, env, park_blocker);
             if (lock_name == NULL || isConcurrentLock(lock_name)) {
@@ -197,8 +199,8 @@ char* LockTracer::getLockName(jvmtiEnv* jvmti, JNIEnv* env, jobject lock) {
     return class_name;
 }
 
-void LockTracer::printLockInfo(LockEventType event_type, jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, jlong timestamp, bool hasStack) {
-    hasStack=false;
+void LockTracer::recordLockInfo(LockEventType event_type, jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, jlong timestamp) {
+    // hasStack=false;
     jvmtiThreadInfo thread_info;
     jlong java_thread_id = 0;
     int native_thread_id = VMThread::nativeThreadId(env, thread);
@@ -207,64 +209,84 @@ void LockTracer::printLockInfo(LockEventType event_type, jvmtiEnv* jvmti, JNIEnv
     }
     
     std::string event_name;
+    std::string lock_type;
     switch (event_type) {
         case LOCK_MONITOR_WAIT:
             event_name = "MonitorWait";
+            lock_type = "MonitorWait";
+            break;
         case LOCK_MONITOR_ENTER:
             event_name = "MonitorEnter";
+            lock_type = "MonitorEnter";
+            break;
         case LOCK_BEFORE_PARK:
             event_name = "UnsafeParkHookBefore";
-            _lockRecorder->updateWaitLockThread(object, native_thread_id, thread_info.name, timestamp);
+            lock_type = "UnsafePark";
             break;
-
         case LOCK_MONITOR_WAITED:
             event_name = "MonitorWaited";
+            break;
         case LOCK_MONITOR_ENTERED:
             event_name = "MonitorEntered";
+            break;
         case LOCK_AFTER_PARK:
             event_name = "UnsafeParkHookAfter";
-             _lockRecorder->updateWakeThread(object, native_thread_id, thread_info.name, timestamp);
             break;
     }
 
-    char* lock_name = getLockName(jvmti, env, object);
-    timespec ts;
-    timespec_get(&ts, TIME_UTC);
-    char buff[100];
-    strftime(buff, sizeof buff, "%D %T", std::gmtime(&ts.tv_sec));
-    printf("%s.%09ld UTC %s: threadName=%s, javaThreadId=%ld, nativeThreadId=%d, lockName=%s\n", buff,
-    ts.tv_nsec, event_name.data(), thread_info.name, java_thread_id, native_thread_id, lock_name);
-    jvmti->Deallocate((unsigned char*)lock_name);
-    jvmti->Deallocate((unsigned char*)thread_info.name);
-
-    if (!hasStack) {
-        return;
+    switch (event_type) {
+        case LOCK_MONITOR_WAIT:
+        case LOCK_MONITOR_ENTER:
+        case LOCK_BEFORE_PARK: {
+            LockWaitEvent* event = new LockWaitEvent(native_thread_id, thread_info.name, java_thread_id, *(uintptr_t*)object, lock_type, timestamp);
+            if (_lockRecorder->isRecordStack()) {
+                event->_stack_trace = getStackTrace(jvmti, thread, 10);
+            }
+            _lockRecorder->updateWaitLockThread(event);
+            break;
+        }
+        case LOCK_MONITOR_WAITED:
+        case LOCK_MONITOR_ENTERED:
+        case LOCK_AFTER_PARK:
+            _lockRecorder->updateWakeThread(*(uintptr_t*)object, native_thread_id, thread_info.name, timestamp);
+            break;
     }
-    printStack(jvmti, thread);
+    // char* lock_name = getLockName(jvmti, env, object);
+    // timespec ts;
+    // timespec_get(&ts, TIME_UTC);
+    // char buff[100];
+    // strftime(buff, sizeof buff, "%D %T", std::gmtime(&ts.tv_sec));
+    // printf("%s.%09ld UTC %s: threadName=%s, javaThreadId=%ld, nativeThreadId=%d, lockName=%s\n", buff,
+    // ts.tv_nsec, event_name.data(), thread_info.name, java_thread_id, native_thread_id, lock_name);
+    // jvmti->Deallocate((unsigned char*)lock_name);
+
+    jvmti->Deallocate((unsigned char*)thread_info.name);
 }
 
-void LockTracer::printStack(jvmtiEnv* jvmti, jthread thread) {
-    jvmtiFrameInfo frames[5];
+string LockTracer::getStackTrace(jvmtiEnv* jvmti, jthread thread, int depth) {
+    jvmtiFrameInfo frames[depth];
     jint count;
     jvmtiError err;
-    err = jvmti->GetStackTrace(thread, 0, 10, frames, &count);
+    string ret_string = string();
+    err = jvmti->GetStackTrace(thread, 0, depth, frames, &count);
     if (err == JVMTI_ERROR_NONE && count >= 1) {
         for (int i=0; i < count; i++) {
-            char *methodName;
+            char *method_name;
             char *signature;
-            err = jvmti->GetMethodName(frames[i].method, &methodName, &signature, NULL);
+            err = jvmti->GetMethodName(frames[i].method, &method_name, &signature, NULL);
             if (err == JVMTI_ERROR_NONE) {
                 jclass declaring_class;
                 err = jvmti->GetMethodDeclaringClass(frames[i].method, &declaring_class);
                 if (err == JVMTI_ERROR_NONE) {
                     jvmti->GetClassSignature(declaring_class, &signature, NULL);
                 }
-                printf("Executing method %s at %s\n", methodName, signature);
+                ret_string.append(method_name).append(".").append(signature);
             }
-            jvmti->Deallocate((unsigned char*)methodName);
+            jvmti->Deallocate((unsigned char*)method_name);
             jvmti->Deallocate((unsigned char*)signature);
         }
     }
+    return ret_string;
 }
 
 bool LockTracer::isConcurrentLock(const char* lock_name) {
@@ -301,4 +323,10 @@ void LockTracer::bindUnsafePark(UnsafeParkFunc entry) {
     if (env->RegisterNatives(_UnsafeClass, &park, 1) != 0) {
         env->ExceptionClear();
     }
+}
+
+u64 LockTracer::currentTimestamp() {
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (u64)ts.tv_sec * 1000000000 + ts.tv_nsec;
 }
