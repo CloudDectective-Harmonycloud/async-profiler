@@ -6,8 +6,6 @@
 #include <string.h>
 #include <stdarg.h>
 
-const char* KINDLING_PREFIX = "kd@";
-
 class EventLogger {
   private:
     static FILE* _file;
@@ -50,7 +48,7 @@ class EventLogger {
             buf[len] = 0;
         }
 
-        fprintf(_file, "%s%s\n", KINDLING_PREFIX, buf);
+        fprintf(_file, "%s\n", buf);
         fflush(_file);
     }
 };

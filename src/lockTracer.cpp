@@ -42,7 +42,6 @@ Error LockTracer::start(Arguments& args) {
         initialize();
     }
 
-    EventLogger::open("/dev/null");
     // Enable Java Monitor events
     jvmtiEnv* jvmti = VM::jvmti();
     jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_MONITOR_WAIT, NULL);
@@ -74,7 +73,6 @@ void LockTracer::stop() {
     if (_lockRecorder != NULL) {
         _lockRecorder->reset();
     }
-    EventLogger::close();
 }
 
 void LockTracer::initialize() {

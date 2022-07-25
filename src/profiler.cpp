@@ -44,6 +44,7 @@
 #include "stackWalker.h"
 #include "symbols.h"
 #include "vmStructs.h"
+#include "eventLogger.h"
 
 
 // The instance is not deleted on purpose, since profiler structures
@@ -773,6 +774,8 @@ void Profiler::updateThreadName(jvmtiEnv* jvmti, JNIEnv* jni, jthread thread) {
         if (native_thread_id >= 0 && jvmti->GetThreadInfo(thread, &thread_info) == 0) {
             jlong java_thread_id = VMThread::javaThreadId(jni, thread);
             setThreadInfo(native_thread_id, thread_info.name, java_thread_id);
+            EventLogger::log("kd-tm@%d!%s", native_thread_id, thread_info.name);
+            printf("Update thread name [%s] for tid [%d]\n", thread_info.name, native_thread_id);
             jvmti->Deallocate((unsigned char*)thread_info.name);
         }
     }
@@ -965,8 +968,11 @@ Error Profiler::start(Arguments& args, bool reset) {
         _safe_mode |= GC_TRACES | LAST_JAVA_PC;
     }
 
+    EventLogger::open("/dev/null");
     _update_thread_names = args._threads || args._output == OUTPUT_JFR;
     _thread_filter.init(args._filter);
+    updateJavaThreadNames();
+    updateNativeThreadNames();
 
     _engine = selectEngine(args._event);
     _cstack = args._cstack;
@@ -1071,6 +1077,7 @@ Error Profiler::stop() {
     _jfr.stop();
     unlockAll();
 
+    EventLogger::close();
     FdTransferClient::closePeer();
     _state = IDLE;
     return Error::OK;

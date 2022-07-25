@@ -21,7 +21,6 @@
 #include "arch.h"
 #include "engine.h"
 #include "lockRecorder.h"
-#include "eventLogger.h"
 
 enum LockEventType {
     LOCK_MONITOR_WAIT,
