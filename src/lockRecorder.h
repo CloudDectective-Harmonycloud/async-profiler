@@ -3,6 +3,7 @@
 
 #include <jvmti.h>
 #include <map>
+#include <mutex>
 #include "lockEvent.h"
 
 using namespace std;
@@ -33,6 +34,7 @@ class LockRecorder {
     }
   private:
     bool _has_stack;
+    std::mutex _mutex;
 
     map<uintptr_t, LockWaitEvent*>* _locked_thread_map;
     map<uintptr_t, map<jint, LockWaitEvent*>*>* _wait_lock_map;

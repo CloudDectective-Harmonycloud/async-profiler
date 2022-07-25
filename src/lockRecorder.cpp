@@ -1,7 +1,6 @@
 #include "lockRecorder.h"
 #include <iostream>
 
-// Is is not possible that multiple threads enter this method. So this is thread-safe.
 void LockRecorder::recordLockedThread(uintptr_t lock_address, LockWaitEvent* event) {
     auto last_locked_thread_it = _locked_thread_map->find(lock_address);
     if (last_locked_thread_it == _locked_thread_map->end()) {
@@ -21,6 +20,7 @@ void LockRecorder::updateWaitLockThread(LockWaitEvent* event) {
     jint locked_thread = findContendedThreads(lock_address, native_thread_id);
     event->_wait_thread_id = locked_thread;
 
+    lock_guard<mutex> lock(_mutex);
     auto wait_iterator = _wait_lock_map->find(lock_address);
     auto threads_map = wait_iterator->second;
     // No object in the map
@@ -47,6 +47,7 @@ void LockRecorder::updateWaitLockThread(LockWaitEvent* event) {
 }
 
 void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, string thread_name, jlong wake_timestamp) {
+    lock_guard<mutex> lock(_mutex);
     auto wait_iterator = _wait_lock_map->find(lock_address);
     if (wait_iterator == _wait_lock_map->end()) {
         // This should not happen because there should be a same lock.
@@ -75,8 +76,12 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
 }
 
 jint LockRecorder::findContendedThreads(uintptr_t lock_address, jint thread_id) {
+    unique_lock<mutex> uni_lock(_mutex, defer_lock);
+    uni_lock.lock();
     auto last_locked_thread_it = _locked_thread_map->find(lock_address);
-    if (last_locked_thread_it == _locked_thread_map->end() || last_locked_thread_it->second->_native_thread_id == thread_id) {
+    uni_lock.unlock();
+    if (last_locked_thread_it == _locked_thread_map->end() 
+     || last_locked_thread_it->second->_native_thread_id == thread_id) {
         // No last thread found
         return -1;
     }
