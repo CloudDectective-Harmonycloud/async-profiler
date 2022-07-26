@@ -763,6 +763,7 @@ void Profiler::setupSignalHandlers() {
 void Profiler::setThreadInfo(int tid, const char* name, jlong java_thread_id) {
     MutexLocker ml(_thread_names_lock);
     _thread_names[tid] = name;
+    _java_thread_names[tid] = name;
     _thread_ids[tid] = java_thread_id;
 }
 
@@ -774,8 +775,8 @@ void Profiler::updateThreadName(jvmtiEnv* jvmti, JNIEnv* jni, jthread thread) {
         if (native_thread_id >= 0 && jvmti->GetThreadInfo(thread, &thread_info) == 0) {
             jlong java_thread_id = VMThread::javaThreadId(jni, thread);
             setThreadInfo(native_thread_id, thread_info.name, java_thread_id);
-            EventLogger::log("kd-tm@%d!%s", native_thread_id, thread_info.name);
-            printf("Update thread name [%s] for tid [%d]\n", thread_info.name, native_thread_id);
+            EventLogger::log("kd-tm@%d!%s!", native_thread_id, thread_info.name);
+            printf("Update java thread name [%s] for tid [%d]\n", thread_info.name, native_thread_id);
             jvmti->Deallocate((unsigned char*)thread_info.name);
         }
     }
@@ -806,9 +807,18 @@ void Profiler::updateNativeThreadNames() {
 
         for (int tid; (tid = thread_list->next()) != -1; ) {
             MutexLocker ml(_thread_names_lock);
+            bool ok = OS::threadName(tid, name_buf, sizeof(name_buf));
+            std::map<int, std::string>::iterator java_it = _java_thread_names.lower_bound(tid);
+            if (java_it == _java_thread_names.end() || java_it->first != tid) {
+                if (ok) {
+                    EventLogger::log("kd-tm@%d!%s!", tid, name_buf);
+                    printf("Update native thread name [%s] for tid [%d]\n", name_buf, tid);
+                }
+            }
+            
             std::map<int, std::string>::iterator it = _thread_names.lower_bound(tid);
             if (it == _thread_names.end() || it->first != tid) {
-                if (OS::threadName(tid, name_buf, sizeof(name_buf))) {
+                if (ok) {
                     _thread_names.insert(it, std::map<int, std::string>::value_type(tid, name_buf));
                 }
             }
@@ -945,6 +955,7 @@ Error Profiler::start(Arguments& args, bool reset) {
         // Reset thread names and IDs
         MutexLocker ml(_thread_names_lock);
         _thread_names.clear();
+        _java_thread_names.clear();
         _thread_ids.clear();
     }
 
@@ -971,6 +982,12 @@ Error Profiler::start(Arguments& args, bool reset) {
     EventLogger::open("/dev/null");
     _update_thread_names = args._threads || args._output == OUTPUT_JFR;
     _thread_filter.init(args._filter);
+    _update_thread_names_task = new UpdateThreadNamesTask(this);
+    _update_thread_names_thread = std::thread([&]{
+        VM::attachThread("Async-profiler Threads Dump");
+        _update_thread_names_task->run();
+        VM::detachThread();
+    });
     updateJavaThreadNames();
     updateNativeThreadNames();
 
@@ -1068,6 +1085,10 @@ Error Profiler::stop() {
     switchThreadEvents(JVMTI_DISABLE);
     updateJavaThreadNames();
     updateNativeThreadNames();
+
+    _update_thread_names_task->stop();
+    _update_thread_names_thread.join();
+    delete _update_thread_names_task;
 
     // Make sure no periodic events sent after JFR stops
     stopTimer();

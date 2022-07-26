@@ -62,7 +62,7 @@ struct LockWaitEvent {
     }
 
     void log() {
-        EventLogger::log("kd-jf@%ld!%ld!%d!%x!%s!%s!%ld!%d!%s", _wait_timestamp, _wake_timestamp, _native_thread_id, _lock_object_address, _lock_type.c_str(), _thread_name.c_str(), _wait_duration, _wait_thread_id, _stack_trace.c_str());
+        EventLogger::log("kd-jf@%ld!%ld!%d!%x!%s!%s!%ld!%d!%s!", _wait_timestamp, _wake_timestamp, _native_thread_id, _lock_object_address, _lock_type.c_str(), _thread_name.c_str(), _wait_duration, _wait_thread_id, _stack_trace.c_str());
     }
 };
 #endif // _LOCKEVENT_H

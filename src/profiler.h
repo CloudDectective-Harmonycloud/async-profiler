@@ -34,6 +34,7 @@
 #include "threadFilter.h"
 #include "trap.h"
 #include "vmEntry.h"
+#include "stoppableTask.h"
 
 
 const char FULL_VERSION_STRING[] =
@@ -55,6 +56,8 @@ class FrameName;
 class NMethod;
 class StackContext;
 
+class UpdateThreadNamesTask;
+
 enum State {
     NEW,
     IDLE,
@@ -71,6 +74,7 @@ class Profiler {
     Mutex _thread_names_lock;
     // TODO: single map?
     std::map<int, std::string> _thread_names;
+    std::map<int, std::string> _java_thread_names;
     std::map<int, jlong> _thread_ids;
     Dictionary _class_map;
     Dictionary _symbol_map;
@@ -106,6 +110,10 @@ class Profiler {
     CodeCacheArray _native_libs;
     const void* _call_stub_begin;
     const void* _call_stub_end;
+
+    // Update threads names task
+    std::thread _update_thread_names_thread;
+    UpdateThreadNamesTask* _update_thread_names_task;
 
     // dlopen() hook support
     void** _dlopen_entry;
@@ -242,6 +250,27 @@ class Profiler {
     }
 
     friend class Recording;
+    friend class UpdateThreadNamesTask;
+};
+
+class UpdateThreadNamesTask: public Stoppable {
+  public:
+    UpdateThreadNamesTask(Profiler* profiler) {
+        this->profiler = profiler;
+    }
+    void run() {
+        // Check if thread is requested to stop
+        while (stopRequested() == false)
+        {
+            std::cout << "Do some work." << std::endl;
+            profiler->updateJavaThreadNames();
+            profiler->updateNativeThreadNames();
+            std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+        }
+        std::cout << "End task." << std::endl;
+    }
+  private:
+    Profiler* profiler;
 };
 
 #endif // _PROFILER_H
