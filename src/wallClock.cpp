@@ -58,9 +58,10 @@ ThreadState WallClock::getThreadState(void* ucontext) {
 }
 
 void WallClock::signalHandler(int signo, siginfo_t* siginfo, void* ucontext) {
-    ExecutionEvent event;
-    event._thread_state = _sample_idle_threads ? getThreadState(ucontext) : THREAD_RUNNING;
-    Profiler::instance()->recordSample(ucontext, _interval, 0, &event);
+    // ExecutionEvent event;
+    // event._thread_state = _sample_idle_threads ? getThreadState(ucontext) : THREAD_RUNNING;
+    // Profiler::instance()->recordSample(ucontext, _interval, 0, &event);
+    Profiler::instance()->printSample(ucontext, _interval);
 }
 
 long WallClock::adjustInterval(long interval, int thread_count) {

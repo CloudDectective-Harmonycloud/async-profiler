@@ -27,6 +27,7 @@
 
 // Less than MAX_PATH to leave some space for appending
 char tmp_path[MAX_PATH - 100];
+char agent_command[MAX_PATH];
 
 // Called just once to fill in tmp_path buffer
 void get_tmp_path(int pid) {
@@ -42,6 +43,71 @@ void get_tmp_path(int pid) {
     }
 }
 
+static int check_tmpfile_exist(int pid, char* file_name) {
+    char dst_path[100];
+    snprintf(dst_path, sizeof(dst_path), "/proc/%d/root/tmp", pid);
+
+    char path[MAX_PATH];
+    snprintf(path, sizeof(path), "%s/%s", dst_path, file_name);
+
+    struct stat stats;
+    return stat(path, &stats) == 0 ? 0 : -1;
+}
+
+static void copy_to_tmpfile(int pid, char* srcPath, char* file_name, char* newfile_name) {
+    char src[MAX_PATH];
+    snprintf(src, sizeof(src), "%s/%s", srcPath, file_name);
+
+    char dst[MAX_PATH];
+    snprintf(dst, sizeof(dst), "/proc/%d/root/tmp/%s", pid, newfile_name);
+
+	int srcFd = open(src, O_RDONLY);
+	if (srcFd < 0) {
+		fprintf(stderr, "[x Open File] %s\n", src);
+		return;
+	}
+	struct stat stats;
+	stat(src, &stats);
+
+	int dstFd = open(dst, O_WRONLY | O_CREAT, stats.st_mode);
+	if (dstFd < 0) {
+		fprintf(stderr, "[x Create File] %s\n", dst);
+		return;
+	}
+
+    // copy_file_range() doesn't exist in older kernels, sendfile() no longer works in newer ones
+    char buf[65536];
+    ssize_t r;
+    while ((r = read(srcFd, buf, sizeof(buf))) > 0) {
+        ssize_t w = write(dstFd, buf, r);
+        (void)w;
+    }
+
+	if (fchmod(dstFd, 0666) != 0) {
+		fprintf(stderr, "[x Chmod File] %s\n", dst);
+		return;
+	}
+}
+
+void check_copy_agent(int pid, char* srcPath, char* agent_name, char* so_name, char* version, char* command) {
+    // copy agent.jar to /tmp/agent.jar
+    char agent_jar[30];
+    snprintf(agent_jar, sizeof(agent_jar), "%s.jar", agent_name);
+
+    if (check_tmpfile_exist(pid, agent_jar) != 0) {
+        copy_to_tmpfile(pid, srcPath, agent_jar, agent_jar);
+    }
+
+    // copy libasyncProfiler.so to /tmp/libasyncProfiler-version.so
+    char agent_so[30], replace_so[50];
+    snprintf(agent_so, sizeof(agent_so), "%s.so", so_name);
+    snprintf(replace_so, sizeof(replace_so), "%s-%s.so", so_name, version);
+
+    if (check_tmpfile_exist(pid, replace_so) != 0) {
+        copy_to_tmpfile(pid, srcPath, agent_so, replace_so);
+    }
+    snprintf(agent_command, sizeof(agent_command), "/tmp/%s.jar=%s,lib=/tmp/%s-%s.so", agent_name, command, so_name, version);
+}
 
 #ifdef __linux__
 

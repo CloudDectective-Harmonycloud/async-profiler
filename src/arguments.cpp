@@ -141,6 +141,9 @@ Error Arguments::parse(const char* args) {
             CASE("dump")
                 _action = ACTION_DUMP;
 
+            CASE("print")
+                _action = ACTION_PRINT;
+
             CASE("check")
                 _action = ACTION_CHECK;
 

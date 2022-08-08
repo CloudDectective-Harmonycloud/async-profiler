@@ -15,11 +15,12 @@
  */
 
 #include <stdio.h>
+#include <libgen.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
 #include "psutil.h"
-
+#include <string.h>
 
 extern int is_openj9_process(int pid);
 extern int jattach_openj9(int pid, int nspid, int argc, char** argv);
@@ -27,7 +28,7 @@ extern int jattach_hotspot(int pid, int nspid, int argc, char** argv);
 
 
 __attribute__((visibility("default")))
-int jattach(int pid, int argc, char** argv) {
+int jattach(char* binary_path, int pid, char* agent_name, char* so_name, int argc, char** argv) {
     uid_t my_uid = geteuid();
     gid_t my_gid = getegid();
     uid_t target_uid = my_uid;
@@ -37,6 +38,9 @@ int jattach(int pid, int argc, char** argv) {
         fprintf(stderr, "Process %d not found\n", pid);
         return 1;
     }
+
+    // Copy Before Enter Ns
+    check_copy_agent(pid, dirname(binary_path), agent_name, so_name, JATTACH_VERSION, argv[3]);
 
     // Container support: switch to the target namespaces.
     // Network and IPC namespaces are essential for OpenJ9 connection.
@@ -57,6 +61,8 @@ int jattach(int pid, int argc, char** argv) {
     // Make write() return EPIPE instead of abnormal process termination
     signal(SIGPIPE, SIG_IGN);
 
+    // Replace agent location.
+    argv[3] = agent_command;
     if (is_openj9_process(nspid)) {
         return jattach_openj9(pid, nspid, argc, argv);
     } else {
@@ -65,15 +71,11 @@ int jattach(int pid, int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
-    if (argc < 3) {
+    if (argc < 5) {
         printf("jattach " JATTACH_VERSION " built on " __DATE__ "\n"
                "Copyright 2021 Andrei Pangin\n"
                "\n"
-               "Usage: jattach <pid> <cmd> [args ...]\n"
-               "\n"
-               "Commands:\n"
-               "    load  threaddump   dumpheap  setflag    properties\n"
-               "    jcmd  inspectheap  datadump  printflag  agentProperties\n"
+               "Usage: jattach <pid> <jar> <so> <cmd> [args ...]\n"
                );
         return 1;
     }
@@ -84,5 +86,5 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    return jattach(pid, argc - 2, argv + 2);
+    return jattach(argv[0], pid, argv[2], argv[3], argc - 4, argv + 4);
 }

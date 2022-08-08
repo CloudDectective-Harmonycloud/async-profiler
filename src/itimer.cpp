@@ -29,8 +29,9 @@ CStack ITimer::_cstack;
 void ITimer::signalHandler(int signo, siginfo_t* siginfo, void* ucontext) {
     if (!_enabled) return;
 
-    ExecutionEvent event;
-    Profiler::instance()->recordSample(ucontext, _interval, 0, &event);
+    // ExecutionEvent event;
+    // Profiler::instance()->recordSample(ucontext, _interval, 0, &event);
+    Profiler::instance()->printSample(ucontext, _interval);
 }
 
 void ITimer::signalHandlerJ9(int signo, siginfo_t* siginfo, void* ucontext) {

@@ -34,6 +34,7 @@
 #include "threadFilter.h"
 #include "trap.h"
 #include "vmEntry.h"
+#include "frameEventCache.h"
 #include "stoppableTask.h"
 
 
@@ -85,6 +86,7 @@ class Profiler {
     Engine* _alloc_engine;
     int _event_mask;
 
+    FrameEventCache* _frameCache;
     time_t _start_time;
     time_t _stop_time;
     int _epoch;
@@ -161,6 +163,7 @@ class Profiler {
     void dumpCollapsed(std::ostream& out, Arguments& args);
     void dumpFlameGraph(std::ostream& out, Arguments& args, bool tree);
     void dumpText(std::ostream& out, Arguments& args);
+    Error printDevNull();
 
     static Profiler* const _instance;
 
@@ -212,7 +215,11 @@ class Profiler {
     void switchThreadEvents(jvmtiEventMode mode);
     int convertNativeTrace(int native_frames, const void** callchain, ASGCT_CallFrame* frames);
     void recordSample(void* ucontext, u64 counter, jint event_type, Event* event);
+    void printSample(void* ucontext, u64 counter);
     void recordExternalSample(u64 counter, Event* event, int tid, int num_frames, ASGCT_CallFrame* frames);
+    void printExternalSample(int tid, int num_frames, ASGCT_CallFrame* frames);
+    void printCallTrace(int tid, int num_frames, ASGCT_CallFrame* frames);
+    void storeCallTrace(int tid, int num_frames, ASGCT_CallFrame* frames);
     void writeLog(LogLevel level, const char* message);
     void writeLog(LogLevel level, const char* message, size_t len);
 
@@ -262,7 +269,7 @@ class UpdateThreadNamesTask: public Stoppable {
         // Check if thread is requested to stop
         while (stopRequested() == false)
         {
-            std::cout << "Do some work." << std::endl;
+            // std::cout << "Do some work." << std::endl;
             profiler->updateJavaThreadNames();
             profiler->updateNativeThreadNames();
             std::this_thread::sleep_for(std::chrono::milliseconds(5000));

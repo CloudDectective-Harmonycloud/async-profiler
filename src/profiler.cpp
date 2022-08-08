@@ -563,6 +563,64 @@ void Profiler::fillFrameTypes(ASGCT_CallFrame* frames, int num_frames, NMethod* 
     }
 }
 
+void Profiler::printSample(void* ucontext, u64 counter) {
+    int tid = OS::threadId();
+    u32 lock_index = getLockIndex(tid);
+    if (!_locks[lock_index].tryLock() &&
+        !_locks[lock_index = (lock_index + 1) % CONCURRENCY_LEVEL].tryLock() &&
+        !_locks[lock_index = (lock_index + 2) % CONCURRENCY_LEVEL].tryLock())
+    {
+        // Too many concurrent signals already
+        atomicInc(_failures[-ticks_skipped]);
+
+        if (_engine == &perf_events) {
+            // Need to reset PerfEvents ring buffer, even though we discard the collected trace
+            PerfEvents::resetBuffer(tid);
+        }
+        return;
+    }
+
+    ASGCT_CallFrame* frames = _calltrace_buffer[lock_index]->_asgct_frames;
+    jvmtiFrameInfo* jvmti_frames = _calltrace_buffer[lock_index]->_jvmti_frames;
+
+    int num_frames = 0;
+    StackContext java_ctx = {0};
+    num_frames += getNativeTrace(ucontext, frames + num_frames, 0, tid, &java_ctx);
+
+    // Async events
+    int java_frames = getJavaTraceAsync(ucontext, frames + num_frames, _max_stack_depth, &java_ctx);
+    if (java_frames > 0 && java_ctx.pc != NULL && VMStructs::hasMethodStructs()) {
+        NMethod* nmethod = CodeHeap::findNMethod(java_ctx.pc);
+        if (nmethod != NULL) {
+            fillFrameTypes(frames + num_frames, java_frames, nmethod);
+        }
+    }
+    num_frames += java_frames;
+
+    if (num_frames > 0) {
+        printCallTrace(tid, num_frames, frames);
+    }
+
+    _locks[lock_index].unlock();
+}
+
+void Profiler::printCallTrace(int tid, int num_frames, ASGCT_CallFrame* frames) {
+    int max_frame = 20;
+    if (max_frame > num_frames) {
+        max_frame = num_frames;
+    }
+
+    if (frames[0].bci <= BCI_NATIVE_FRAME && (frames[max_frame - 1].bci <= BCI_NATIVE_FRAME)) {
+        // Ignore GC Threads
+        return;
+    }
+    storeCallTrace(tid, max_frame, frames);
+}
+
+void Profiler::storeCallTrace(int tid, int num_frames, ASGCT_CallFrame* frames) {
+    _frameCache->add(tid, num_frames, frames);
+}
+
 void Profiler::recordSample(void* ucontext, u64 counter, jint event_type, Event* event) {
     atomicInc(_total_samples);
 
@@ -629,6 +687,22 @@ void Profiler::recordSample(void* ucontext, u64 counter, jint event_type, Event*
 
     u32 call_trace_id = _call_trace_storage.put(num_frames, frames, counter);
     _jfr.recordEvent(lock_index, tid, call_trace_id, event_type, event, counter);
+
+    _locks[lock_index].unlock();
+}
+
+void Profiler::printExternalSample(int tid, int num_frames, ASGCT_CallFrame* frames) {
+    u32 lock_index = getLockIndex(tid);
+    if (!_locks[lock_index].tryLock() &&
+        !_locks[lock_index = (lock_index + 1) % CONCURRENCY_LEVEL].tryLock() &&
+        !_locks[lock_index = (lock_index + 2) % CONCURRENCY_LEVEL].tryLock())
+    {
+        // Too many concurrent signals already
+        atomicInc(_failures[-ticks_skipped]);
+        return;
+    }
+
+    printCallTrace(tid, num_frames, frames);
 
     _locks[lock_index].unlock();
 }
@@ -925,8 +999,8 @@ Error Profiler::start(Arguments& args, bool reset) {
                   (args._lock >= 0 ? EM_LOCK : 0);
     if (_event_mask == 0) {
         return Error("No profiling events specified");
-    } else if ((_event_mask & (_event_mask - 1)) && args._output != OUTPUT_JFR) {
-        return Error("Only JFR output supports multiple events");
+    // } else if ((_event_mask & (_event_mask - 1)) && args._output != OUTPUT_JFR) {
+    //     return Error("Only JFR output supports multiple events");
     }
 
     if (args._fdtransfer) {
@@ -1017,6 +1091,8 @@ Error Profiler::start(Arguments& args, bool reset) {
         }
     }
 
+    _epoch++;
+    _frameCache = new FrameEventCache(args, args._style, _epoch, _thread_names_lock, _thread_names);
     error = _engine->start(args);
     if (error) {
         goto error1;
@@ -1040,7 +1116,6 @@ Error Profiler::start(Arguments& args, bool reset) {
 
     _state = RUNNING;
     _start_time = time(NULL);
-    _epoch++;
 
     if (args._timeout != 0 || args._output == OUTPUT_JFR) {
         _stop_time = addTimeout(_start_time, args._timeout);
@@ -1372,6 +1447,19 @@ void Profiler::dumpText(std::ostream& out, Arguments& args) {
     }
 }
 
+Error Profiler::printDevNull() {
+    MutexLocker ml(_state_lock);
+    // Open output file under the lock to avoid races with background timer
+    if (_state != IDLE && _state != RUNNING) {
+        return Error("Profiler has not started");
+    }
+    lockAll();
+
+    _frameCache->collect();
+    unlockAll();
+    return Error::OK;
+}
+
 time_t Profiler::addTimeout(time_t start, int timeout) {
     if (timeout == 0) {
         return (time_t)0x7fffffff;
@@ -1492,6 +1580,13 @@ Error Profiler::runInternal(Arguments& args, std::ostream& out) {
                 return error;
             }
             break;
+        }
+        case ACTION_PRINT: {
+            Error error = printDevNull();
+            if (error) {
+                return error;
+            }
+            return Error::OK;
         }
         case ACTION_CHECK: {
             Error error = check(args);
