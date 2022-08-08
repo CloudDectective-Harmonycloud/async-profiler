@@ -596,7 +596,7 @@ void Profiler::recordSample(void* ucontext, u64 counter, jint event_type, Event*
     if (event_type == 0) {
         // Async events
         int java_frames = getJavaTraceAsync(ucontext, frames + num_frames, _max_stack_depth, &java_ctx);
-        if (java_frames > 0 && java_ctx.pc != NULL) {
+        if (java_frames > 0 && java_ctx.pc != NULL && VMStructs::hasMethodStructs()) {
             NMethod* nmethod = CodeHeap::findNMethod(java_ctx.pc);
             if (nmethod != NULL) {
                 fillFrameTypes(frames + num_frames, java_frames, nmethod);
@@ -900,7 +900,6 @@ Error Profiler::checkJvmCapabilities() {
         if (lib == NULL || (_dlopen_entry = lib->findGlobalOffsetEntry((void*)dlopen)) == NULL) {
             return Error("Could not set dlopen hook. Unsupported JVM?");
         }
-        Symbols::makePatchable(lib);
     }
 
     if (!VMStructs::hasDebugSymbols() && !VM::isOpenJ9()) {
