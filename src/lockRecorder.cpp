@@ -13,12 +13,21 @@ void LockRecorder::recordLockedThread(uintptr_t lock_address, LockWaitEvent* eve
     }
 }
 
+bool isConcurrentLock(const string lock_name) {
+    // Do not count synchronizers other than ReentrantLock, ReentrantReadWriteLock and Semaphore
+    return lock_name == "Ljava/util/concurrent/locks/ReentrantLock" ||
+           lock_name == "Ljava/util/concurrent/locks/ReentrantReadWriteLock";
+}
+
 // Thread-safe must be guaranteed.
 void LockRecorder::updateWaitLockThread(LockWaitEvent* event) {
     uintptr_t lock_address = event->_lock_object_address;
     jint native_thread_id = event->_native_thread_id;
-    jint locked_thread = findContendedThreads(lock_address, native_thread_id);
-    event->_wait_thread_id = locked_thread;
+    bool notConcurrentLock = event->_lock_type == "UnsafePark" && !isConcurrentLock(event->_lock_name);
+    if (!notConcurrentLock) {
+        jint locked_thread = findContendedThreads(lock_address, native_thread_id);
+        event->_wait_thread_id = locked_thread;
+    }
 
     lock_guard<mutex> lock(_mutex);
     auto wait_iterator = _wait_lock_map->find(lock_address);

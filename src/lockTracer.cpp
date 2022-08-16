@@ -208,6 +208,7 @@ void LockTracer::recordLockInfo(LockEventType event_type, jvmtiEnv* jvmti, JNIEn
     
     std::string event_name;
     std::string lock_type;
+    std::string lock_name;
     switch (event_type) {
         case LOCK_MONITOR_WAIT:
             event_name = "MonitorWait";
@@ -220,6 +221,7 @@ void LockTracer::recordLockInfo(LockEventType event_type, jvmtiEnv* jvmti, JNIEn
         case LOCK_BEFORE_PARK:
             event_name = "UnsafeParkHookBefore";
             lock_type = "UnsafePark";
+            lock_name = getLockName(jvmti, env, object);
             break;
         case LOCK_MONITOR_WAITED:
             event_name = "MonitorWaited";
@@ -236,7 +238,7 @@ void LockTracer::recordLockInfo(LockEventType event_type, jvmtiEnv* jvmti, JNIEn
         case LOCK_MONITOR_WAIT:
         case LOCK_MONITOR_ENTER:
         case LOCK_BEFORE_PARK: {
-            LockWaitEvent* event = new LockWaitEvent(native_thread_id, thread_info.name, java_thread_id, *(uintptr_t*)object, lock_type, timestamp);
+            LockWaitEvent* event = new LockWaitEvent(native_thread_id, thread_info.name, java_thread_id, *(uintptr_t*)object, lock_type, lock_name, timestamp);
             if (_lockRecorder->isRecordStack()) {
                 event->_stack_trace = getStackTrace(jvmti, thread, 10);
             }
