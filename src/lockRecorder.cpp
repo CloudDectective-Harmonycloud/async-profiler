@@ -70,9 +70,9 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
     recordLockedThread(lock_address, event);
     
     event->print();
-    // if (!filter(event)) {
+    if (!filter(event)) {
         event->log();
-    // }
+    }
 }
 
 jint LockRecorder::findContendedThreads(uintptr_t lock_address, jint thread_id) {
