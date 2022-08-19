@@ -610,10 +610,10 @@ void Profiler::printCallTrace(int tid, int num_frames, ASGCT_CallFrame* frames) 
         max_frame = num_frames;
     }
 
-    if (frames[0].bci <= BCI_NATIVE_FRAME && (frames[max_frame - 1].bci <= BCI_NATIVE_FRAME)) {
-        // Ignore GC Threads
-        return;
-    }
+    // if (frames[0].bci <= BCI_NATIVE_FRAME && (frames[max_frame - 1].bci <= BCI_NATIVE_FRAME)) {
+    //     // Ignore GC Threads
+    //     return;
+    // }
     storeCallTrace(tid, max_frame, frames);
 }
 
