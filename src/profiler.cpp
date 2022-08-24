@@ -605,15 +605,15 @@ void Profiler::printSample(void* ucontext, u64 counter) {
 }
 
 void Profiler::printCallTrace(int tid, int num_frames, ASGCT_CallFrame* frames) {
-    int max_frame = 20;
+    int max_frame = _max_stack_depth;
     if (max_frame > num_frames) {
         max_frame = num_frames;
     }
 
-    if (frames[0].bci <= BCI_NATIVE_FRAME && (frames[max_frame - 1].bci <= BCI_NATIVE_FRAME)) {
-        // Ignore GC Threads
-        return;
-    }
+    // if (frames[0].bci <= BCI_NATIVE_FRAME && (frames[max_frame - 1].bci <= BCI_NATIVE_FRAME)) {
+    //     // Ignore GC Threads
+    //     return;
+    // }
     storeCallTrace(tid, max_frame, frames);
 }
 

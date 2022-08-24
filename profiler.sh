@@ -2,16 +2,19 @@
 set -eu
 
 usage() {
-    echo "Usage: $0 [action] <pid>"
+    echo "Usage: $0 [action] [options] <pid>"
     echo "Actions:"
     echo "  start             start profiling and return immediately"
     echo "  stop              stop profiling"
+    echo "Options:"
+    echo "  -i interval       sampling interval in nanoseconds"
+    echo "  -j jstackdepth    maximum Java stack depth"
     echo ""
     echo "<pid> is a numeric process ID of the target JVM"
     echo "      or 'jps' keyword to find running JVM automatically"
     echo "      or the application's name as it would appear in the jps tool"
     echo ""
-    echo "Example: $0 start 3456"
+    echo "Example: $0 start -i 10000000 -j 20 3456"
     echo "         $0 stop 3456"
     exit 1
 }
@@ -80,6 +83,7 @@ AGENT_JAR=agent-core
 ACTION="start"
 FILE=""
 USE_TMP="true"
+PARAMS=""
 PID=""
 
 while [ $# -gt 0 ]; do
@@ -89,6 +93,14 @@ while [ $# -gt 0 ]; do
             ;;
         start|stop)
             ACTION="$1"
+            ;;
+        -i)
+            PARAMS="$PARAMS,interval=$2"
+            shift
+            ;;
+        -j)
+            PARAMS="$PARAMS,jstackdepth=$2"
+            shift
             ;;
         [0-9]*)
             PID="$1"
@@ -148,7 +160,7 @@ fi
 
 case $ACTION in
     start)
-        jattach "$ACTION,file=$FILE"
+        jattach "$ACTION,file=$FILE$PARAMS"
         ;;
     stop)
         jattach "$ACTION,file=$FILE"
