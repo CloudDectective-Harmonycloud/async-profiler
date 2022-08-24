@@ -13,7 +13,7 @@ bool filter(LockWaitEvent* event);
 class LockRecorder {
   public:
     LockRecorder() {
-        _has_stack = false;
+        _has_stack = true;
         _locked_thread_map = new map<uintptr_t, LockWaitEvent*>();
         _wait_lock_map = new map<uintptr_t, map<jint, LockWaitEvent*>*>();
     }

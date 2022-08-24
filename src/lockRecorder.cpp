@@ -68,9 +68,9 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
     event->_wait_duration = wake_timestamp - event->_wait_timestamp;
 
     recordLockedThread(lock_address, event);
-    
-    event->print();
+
     if (!filter(event)) {
+        event->print();
         event->log();
     }
 }
@@ -88,8 +88,8 @@ jint LockRecorder::findContendedThreads(uintptr_t lock_address, jint thread_id) 
     return last_locked_thread_it->second->_native_thread_id;
 }
 
-// 10ms
-jlong threshold = 10 * 1e6;
+// 11ms
+jlong threshold = 11 * 1e6;
 inline bool filter(LockWaitEvent* event) {
     jlong duration = event->_wait_duration;
     if (duration < threshold) {
