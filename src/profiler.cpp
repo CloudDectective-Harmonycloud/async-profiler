@@ -605,7 +605,7 @@ void Profiler::printSample(void* ucontext, u64 counter) {
 }
 
 void Profiler::printCallTrace(int tid, int num_frames, ASGCT_CallFrame* frames) {
-    int max_frame = 20;
+    int max_frame = _max_stack_depth;
     if (max_frame > num_frames) {
         max_frame = num_frames;
     }

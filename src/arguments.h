@@ -22,7 +22,7 @@
 
 const long DEFAULT_INTERVAL = 10000000;      // 10 ms
 const long DEFAULT_ALLOC_INTERVAL = 524287;  // 512 KiB
-const int DEFAULT_JSTACKDEPTH = 2048;
+const int DEFAULT_JSTACKDEPTH = 20;
 
 const char* const EVENT_CPU    = "cpu";
 const char* const EVENT_ALLOC  = "alloc";
