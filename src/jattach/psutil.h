@@ -24,7 +24,7 @@
 extern char tmp_path[];
 extern char agent_command[];
 
-void check_copy_agent(int pid, char* srcPath, char* agent_name, char* so_name, char* version, char* command);
+int check_copy_agent(int pid, char* srcpath, char* agentpath, char* agentname, char* soname, char* command);
 
 
 // Gets /tmp path of the specified process, as it can be accessed from the host.

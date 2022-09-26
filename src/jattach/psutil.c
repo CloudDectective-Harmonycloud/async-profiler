@@ -28,6 +28,7 @@
 // Less than MAX_PATH to leave some space for appending
 char tmp_path[MAX_PATH - 100];
 char agent_command[MAX_PATH];
+char version[32];
 
 // Called just once to fill in tmp_path buffer
 void get_tmp_path(int pid) {
@@ -43,23 +44,62 @@ void get_tmp_path(int pid) {
     }
 }
 
-static int check_tmpfile_exist(int pid, char* file_name) {
-    char dst_path[100];
-    snprintf(dst_path, sizeof(dst_path), "/proc/%d/root/tmp", pid);
-
-    char path[MAX_PATH];
-    snprintf(path, sizeof(path), "%s/%s", dst_path, file_name);
-
-    struct stat stats;
-    return stat(path, &stats) == 0 ? 0 : -1;
+static int get_version(char* path) {
+    char version_path[256];
+	snprintf(version_path, sizeof(version_path), "%s/version", path);
+    FILE *version_file = fopen(version_path, "r");
+	if (version_file == NULL) {
+		fprintf(stderr, "[x File NotExist] %s\n", version_path);
+		return -1;
+	}
+    ssize_t len;
+    size_t size = 0;
+    char* new_version = NULL;
+    while ((len = getline(&new_version, &size, version_file)) > 0) {
+        new_version[len - 1] = 0;
+        strcpy(version, new_version);
+        return 0;
+    }
+    return -1;
 }
 
-static void copy_to_tmpfile(int pid, char* srcPath, char* file_name, char* newfile_name) {
-    char src[MAX_PATH];
-    snprintf(src, sizeof(src), "%s/%s", srcPath, file_name);
+static int mk_dir(char *write_dir_path) {
+	if (access(write_dir_path, F_OK) != 0) {
+		mkdir(write_dir_path, 0666);
 
-    char dst[MAX_PATH];
-    snprintf(dst, sizeof(dst), "/proc/%d/root/tmp/%s", pid, newfile_name);
+		int dst_fd = open(write_dir_path, O_RDONLY);
+		if (fchmod(dst_fd, 0766) < 0) {
+			fprintf(stderr, "[x Chmod Folder] %s\n", write_dir_path);
+			return -1;
+		}
+		fprintf(stderr, "[√ Make Directory] %s\n", write_dir_path);
+	}
+	return 0;
+}
+
+static int prepare_write_dir(const char *write_container_path, int to_copy_length) {
+	char str[512];
+	strncpy(str, write_container_path, 512);
+
+	int full_length = strlen(str);
+	for (int i = full_length - to_copy_length; i < full_length; i++) {
+		if (str[i] == '/') {
+			str[i] = '\0';
+			if (mk_dir(str) != 0) {
+				return -1;
+			}
+			str[i] = '/';
+		}
+	}
+	return 0;
+}
+
+static void copy_file(const char *src, const char *dst) {
+    int dstFd = open(dst, O_RDONLY);
+    if (dstFd >= 0) {
+        fprintf(stderr, "[Exist File] %s\n", dst);
+        return;
+    }
 
 	int srcFd = open(src, O_RDONLY);
 	if (srcFd < 0) {
@@ -69,13 +109,14 @@ static void copy_to_tmpfile(int pid, char* srcPath, char* file_name, char* newfi
 	struct stat stats;
 	stat(src, &stats);
 
-	int dstFd = open(dst, O_WRONLY | O_CREAT, stats.st_mode);
+    dstFd = open(dst, O_WRONLY | O_CREAT, stats.st_mode);
 	if (dstFd < 0) {
 		fprintf(stderr, "[x Create File] %s\n", dst);
 		return;
 	}
 
-    // copy_file_range() doesn't exist in older kernels, sendfile() no longer works in newer ones
+    fprintf(stderr, "[Create File] %s, Fd: %d\n", dst, dstFd);
+
     char buf[65536];
     ssize_t r;
     while ((r = read(srcFd, buf, sizeof(buf))) > 0) {
@@ -89,24 +130,74 @@ static void copy_to_tmpfile(int pid, char* srcPath, char* file_name, char* newfi
 	}
 }
 
-void check_copy_agent(int pid, char* srcPath, char* agent_name, char* so_name, char* version, char* command) {
-    // copy agent.jar to /tmp/agent.jar
-    char agent_jar[30];
-    snprintf(agent_jar, sizeof(agent_jar), "%s.jar", agent_name);
+static int copy_dir(const char *read_dir_path, const char *write_dir_path) {
+	DIR *p_dir = opendir(read_dir_path);
+	if (p_dir == NULL) {
+        fprintf(stderr, "[x Open Folder] %s\n", read_dir_path);
+		return -1;
+	}
 
-    if (check_tmpfile_exist(pid, agent_jar) != 0) {
-        copy_to_tmpfile(pid, srcPath, agent_jar, agent_jar);
+    DIR* dir = opendir(write_dir_path);
+    if (dir == NULL) {
+        if (mkdir(write_dir_path, 0666) < 0) {
+            fprintf(stderr, "[x Create Folder] %s\n", write_dir_path);
+            return -1;
+        } else {
+            int dst_fd = open(write_dir_path, O_RDONLY);
+            if (fchmod(dst_fd, 0766) < 0) {
+                fprintf(stderr, "[x Chmod Folder] %s\n", write_dir_path);
+                return -1;
+            }
+            fprintf(stderr, "[√ Create Folder] %s\n", write_dir_path);
+        }
     }
 
-    // copy libasyncProfiler.so to /tmp/libasyncProfiler-version.so
-    char agent_so[30], replace_so[50];
-    snprintf(agent_so, sizeof(agent_so), "%s.so", so_name);
-    snprintf(replace_so, sizeof(replace_so), "%s-%s.so", so_name, version);
+	struct stat s_buf;
+	struct dirent *entry;
+	while ((entry = readdir(p_dir)) != NULL) {
+		if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) {
+			continue;
+		}
+		char read_buffer[512];
+		char write_buffer[512];
+        snprintf(read_buffer, sizeof(read_buffer), "%s/%s", read_dir_path, entry->d_name);
+        snprintf(write_buffer, sizeof(write_buffer), "%s/%s", write_dir_path, entry->d_name);
 
-    if (check_tmpfile_exist(pid, replace_so) != 0) {
-        copy_to_tmpfile(pid, srcPath, agent_so, replace_so);
+		stat(read_buffer, &s_buf);
+		if (S_ISDIR(s_buf.st_mode)) {
+			copy_dir(read_buffer, write_buffer);
+		} else if (S_ISREG(s_buf.st_mode)) {
+			copy_file(read_buffer, write_buffer);
+		}
+	}
+	closedir(p_dir);
+
+	return 0;
+}
+
+int check_copy_agent(int pid, char* srcPath, char* agentpath, char* agentname, char* so_name, char* command) {
+    if (get_version(agentpath) == -1) {
+        return -1;
     }
-    snprintf(agent_command, sizeof(agent_command), "/tmp/%s.jar=%s,lib=/tmp/%s-%s.so", agent_name, command, so_name, version);
+    fprintf(stderr, "[√ Get Version] %s\n", version);
+
+    char write_container_path[128];
+	snprintf(write_container_path, sizeof(write_container_path), "/proc/%d/root/tmp/kindling", pid);
+    if (prepare_write_dir(write_container_path, 13) == -1) {
+        return -1;
+    }
+    if (copy_dir(agentpath, write_container_path) == -1) {
+        return -1;
+    }
+
+    // copy libasyncProfiler.so to /tmp/kindling/{version}/libasyncProfiler.so
+    char src_so_path[256], dst_so_path[256];
+    snprintf(src_so_path, sizeof(src_so_path), "%s/%s", srcPath, so_name);
+    snprintf(dst_so_path, sizeof(dst_so_path), "%s/%s/%s", write_container_path, version, so_name);
+    copy_file(src_so_path, dst_so_path);
+
+    snprintf(agent_command, sizeof(agent_command), "/tmp/kindling/%s=%s,version=%s", agentname, command, version);
+    return 0;
 }
 
 #ifdef __linux__

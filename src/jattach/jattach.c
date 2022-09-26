@@ -26,9 +26,8 @@ extern int is_openj9_process(int pid);
 extern int jattach_openj9(int pid, int nspid, int argc, char** argv);
 extern int jattach_hotspot(int pid, int nspid, int argc, char** argv);
 
-
 __attribute__((visibility("default")))
-int jattach(char* binary_path, int pid, char* agent_name, char* so_name, int argc, char** argv) {
+int jattach(char* binary_path, int pid, char* agent_jar_path, char* so_name, int argc, char** argv) {
     uid_t my_uid = geteuid();
     gid_t my_gid = getegid();
     uid_t target_uid = my_uid;
@@ -40,7 +39,9 @@ int jattach(char* binary_path, int pid, char* agent_name, char* so_name, int arg
     }
 
     // Copy Before Enter Ns
-    check_copy_agent(pid, dirname(binary_path), agent_name, so_name, JATTACH_VERSION, argv[3]);
+    if (check_copy_agent(pid, dirname(binary_path), dirname(agent_jar_path), basename(agent_jar_path), so_name, argv[3]) < 0) {
+        return 1;
+    }
 
     // Container support: switch to the target namespaces.
     // Network and IPC namespaces are essential for OpenJ9 connection.
@@ -75,7 +76,7 @@ int main(int argc, char** argv) {
         printf("jattach " JATTACH_VERSION " built on " __DATE__ "\n"
                "Copyright 2021 Andrei Pangin\n"
                "\n"
-               "Usage: jattach <pid> <jar> <so> <cmd> [args ...]\n"
+               "Usage: jattach <pid> <agent_jar> <libasyncProfiler.so> <cmd> [args ...]\n"
                );
         return 1;
     }
