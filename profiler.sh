@@ -78,8 +78,8 @@ done
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_BIN")" > /dev/null 2>&1; pwd -P)"
 
 JATTACH=$SCRIPT_DIR/build/jattach
-PROFILER=libasyncProfiler
-AGENT_JAR=agent-core
+AGENT_JAR=$SCRIPT_DIR/agent/agent-boot.jar
+PROFILER=libasyncProfiler.so
 ACTION="start"
 FILE=""
 USE_TMP="true"
