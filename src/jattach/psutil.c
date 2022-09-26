@@ -82,7 +82,8 @@ static int prepare_write_dir(const char *write_container_path, int to_copy_lengt
 	strncpy(str, write_container_path, 512);
 
 	int full_length = strlen(str);
-	for (int i = full_length - to_copy_length; i < full_length; i++) {
+    int i = 0;
+	for (i = full_length - to_copy_length; i < full_length; i++) {
 		if (str[i] == '/') {
 			str[i] = '\0';
 			if (mk_dir(str) != 0) {
