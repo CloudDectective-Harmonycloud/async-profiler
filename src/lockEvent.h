@@ -60,7 +60,7 @@ struct LockWaitEvent {
     std::string _stack_trace;
 
     void print() {
-        printf("{\"threadId\":%d,\"threadName\":\"%s\", \"javaThreadId\":%d,\"waitTimestamp\":%ld,\"wakeTimestamp\":%ld,\"objectAddr\":\"%x\",\"lockType\":\"%s\", \"lockName\":%s,\"waitDuration\":%ld,\"waitThread\":%d,\"stack\":\"%s\"}",
+        printf("{\"threadId\":%d,\"threadName\":\"%s\", \"javaThreadId\":%d,\"waitTimestamp\":%ld,\"wakeTimestamp\":%ld,\"objectAddr\":\"%lx\",\"lockType\":\"%s\", \"lockName\":%s,\"waitDuration\":%ld,\"waitThread\":%d,\"stack\":\"%s\"}",
         _native_thread_id, _thread_name.c_str(), _java_thread_id, _wait_timestamp, _wake_timestamp, _lock_object_address, _lock_type.c_str(), _lock_name.c_str(), _wait_duration, _wait_thread_id, _stack_trace.c_str());
         printf("\n");
     }

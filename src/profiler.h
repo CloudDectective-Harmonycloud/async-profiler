@@ -276,7 +276,7 @@ class UpdateThreadNamesTask: public Stoppable {
             profiler->updateNativeThreadNames();
             std::this_thread::sleep_for(std::chrono::milliseconds(5000));
         }
-        std::cout << "End task." << std::endl;
+        // std::cout << "End task." << std::endl;
     }
   private:
     Profiler* profiler;

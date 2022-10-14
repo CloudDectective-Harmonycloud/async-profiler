@@ -51,7 +51,7 @@ void LockRecorder::updateWaitLockThread(LockWaitEvent* event) {
     // It is supported not to enter this branch.
     // Because one lock can not be waited by a same thread twice. 
     // TODO: remove the println code.
-    printf("[WARN] A lock is waited by a same thread twice. thread_id=%d, thread_name=%s.\n", native_thread_id, event->_thread_name.data());
+    // printf("[WARN] A lock is waited by a same thread twice. thread_id=%d, thread_name=%s.\n", native_thread_id, event->_thread_name.data());
     delete event;
 }
 
@@ -60,7 +60,7 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
     auto wait_iterator = _wait_lock_map->find(lock_address);
     if (wait_iterator == _wait_lock_map->end()) {
         // This should not happen because there should be a same lock.
-        printf("[WARN] There is no the same lock. lock_address=%lu, thread_id=%d, thread_name=%s.\n", lock_address, thread_id, thread_name.data());
+        // printf("[WARN] There is no the same lock. lock_address=%lu, thread_id=%d, thread_name=%s.\n", lock_address, thread_id, thread_name.data());
         return;
     }
 
@@ -68,7 +68,7 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
     auto event_iterator = threads_map->find(thread_id);
     if (event_iterator == threads_map->end()) {
         // This should not happen because there should be a waited thread before it is waked.
-        printf("[WARN] There is no the same thread waiting to be waked. thread_id=%d, thread_name=%s.\n", thread_id, thread_name.data());
+        // printf("[WARN] There is no the same thread waiting to be waked. thread_id=%d, thread_name=%s.\n", thread_id, thread_name.data());
         return;
     }
     LockWaitEvent* event = event_iterator->second;
@@ -79,7 +79,7 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
     recordLockedThread(lock_address, event);
 
     if (!filter(event)) {
-        event->print();
+        // event->print();
         event->log();
     }
 }
