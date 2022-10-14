@@ -625,7 +625,7 @@ void Profiler::printCallTrace(int tid, int num_frames, ASGCT_CallFrame* frames) 
 }
 
 void Profiler::storeCallTrace(int tid, int num_frames, ASGCT_CallFrame* frames) {
-    _frameCache->add(tid, num_frames, frames);
+    _frameCache.add(tid, num_frames, frames);
 }
 
 void Profiler::recordSample(void* ucontext, u64 counter, jint event_type, Event* event) {
@@ -857,7 +857,7 @@ void Profiler::updateThreadName(jvmtiEnv* jvmti, JNIEnv* jni, jthread thread) {
             jlong java_thread_id = VMThread::javaThreadId(jni, thread);
             setThreadInfo(native_thread_id, thread_info.name, java_thread_id);
             EventLogger::log("kd-tm@%d!%s!", native_thread_id, thread_info.name);
-            printf("Update java thread name [%s] for tid [%d]\n", thread_info.name, native_thread_id);
+            // printf("Update java thread name [%s] for tid [%d]\n", thread_info.name, native_thread_id);
             jvmti->Deallocate((unsigned char*)thread_info.name);
         }
     }
@@ -893,7 +893,7 @@ void Profiler::updateNativeThreadNames() {
             if (java_it == _java_thread_names.end() || java_it->first != tid) {
                 if (ok) {
                     EventLogger::log("kd-tm@%d!%s!", tid, name_buf);
-                    printf("Update native thread name [%s] for tid [%d]\n", name_buf, tid);
+                    // printf("Update native thread name [%s] for tid [%d]\n", name_buf, tid);
                 }
             }
             
@@ -1099,7 +1099,7 @@ Error Profiler::start(Arguments& args, bool reset) {
     }
 
     _epoch++;
-    _frameCache = new FrameEventCache(args, args._style, _epoch, _thread_names_lock, _thread_names);
+    _frameName = new FrameName(args, args._style, _epoch, _thread_names_lock, _thread_names);
     error = _engine->start(args);
     if (error) {
         goto error1;
@@ -1179,6 +1179,7 @@ Error Profiler::stop() {
     _jfr.stop();
     unlockAll();
 
+    delete _frameName;
     EventLogger::close();
     FdTransferClient::closePeer();
     _state = IDLE;
@@ -1462,7 +1463,7 @@ Error Profiler::printDevNull() {
     }
     lockAll();
 
-    _frameCache->collect();
+    _frameCache.collect(_frameName);
     unlockAll();
     return Error::OK;
 }

@@ -86,7 +86,8 @@ class Profiler {
     Engine* _alloc_engine;
     int _event_mask;
 
-    FrameEventCache* _frameCache;
+    FrameName* _frameName;
+    FrameEventCache _frameCache;
     time_t _start_time;
     time_t _stop_time;
     int _epoch;
@@ -175,6 +176,7 @@ class Profiler {
         _thread_filter(),
         _call_trace_storage(),
         _jfr(),
+        _frameCache(),
         _start_time(0),
         _epoch(0),
         _timer_id(NULL),

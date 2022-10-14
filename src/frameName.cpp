@@ -92,8 +92,6 @@ FrameName::FrameName(Arguments& args, int style, int epoch, Mutex& thread_names_
     _thread_names_lock(thread_names_lock),
     _thread_names(thread_names)
 {
-    // Require printf to use standard C format regardless of system locale
-    _saved_locale = uselocale(newlocale(LC_NUMERIC_MASK, "C", (locale_t)0));
     memset(_buf, 0, sizeof(_buf));
 
     buildFilter(_include, args._buf, args._include);
@@ -115,8 +113,6 @@ FrameName::~FrameName() {
             }
         }
     }
-
-    freelocale(uselocale(_saved_locale));
 }
 
 void FrameName::buildFilter(std::vector<Matcher>& vector, const char* base, int offset) {

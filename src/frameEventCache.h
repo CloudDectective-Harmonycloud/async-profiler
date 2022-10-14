@@ -38,12 +38,11 @@ class FrameEventCache {
     private:
         P_FrameEventList* _list;
         volatile int _write_index;
-        FrameName* _frameName;
     public:
-        FrameEventCache(Arguments& args, int style, int epoch, Mutex& thread_names_lock, ThreadMap& thread_names);
+        FrameEventCache();
         ~FrameEventCache();
 
         void add(jint thread_id, int num_frames, ASGCT_CallFrame* frames);
-        void collect();
+        void collect(FrameName* fn);
 };
 #endif // _FRAME_EVENT_CACHE_H

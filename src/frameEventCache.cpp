@@ -67,9 +67,7 @@ FrameEventList::FrameEventList(int capacity, int max_depth) : _capacity(capacity
 }
 
 FrameEventList::~FrameEventList() {
-    for (int i = 0; i < _capacity; i++) {
-        delete _events[i];
-    }
+    delete []_events;
     _count = 0;
 }
 
@@ -93,22 +91,22 @@ void FrameEventList::log(FrameName* frameName) {
     _count = 0;
 }
 
-FrameEventCache::FrameEventCache(Arguments& args, int style, int epoch, Mutex& thread_names_lock, ThreadMap& thread_names) : _write_index(0) {
-    _frameName = new FrameName(args, style, epoch, thread_names_lock, thread_names);
+FrameEventCache::FrameEventCache() : _write_index(0) {
     _list = new P_FrameEventList[2];
     _list[0] = new FrameEventList(MAX_SIZE, MAX_DEPTH);
     _list[1] = new FrameEventList(MAX_SIZE, MAX_DEPTH);
 }
 
 FrameEventCache::~FrameEventCache() {
+    delete []_list;
 }
 
 void FrameEventCache::add(int thread_id, int num_frames, ASGCT_CallFrame* frames) {
     _list[_write_index]->addFrameEvent(thread_id, num_frames, frames);
 }
 
-void FrameEventCache::collect() {
+void FrameEventCache::collect(FrameName* fn) {
     FrameEventList* list = _list[_write_index];
     _write_index = 1 - _write_index;
-    list->log(_frameName);
+    list->log(fn);
 }

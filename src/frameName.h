@@ -18,18 +18,12 @@
 #define _FRAMENAME_H
 
 #include <jvmti.h>
-#include <locale.h>
 #include <map>
 #include <vector>
 #include <string>
 #include "arguments.h"
 #include "mutex.h"
 #include "vmEntry.h"
-
-#ifdef __APPLE__
-#  include <xlocale.h>
-#endif
-
 
 typedef std::map<jmethodID, std::string> JMethodCache;
 typedef std::map<int, std::string> ThreadMap;
@@ -74,7 +68,6 @@ class FrameName {
     unsigned char _cache_max_age;
     Mutex& _thread_names_lock;
     ThreadMap& _thread_names;
-    locale_t _saved_locale;
 
     void buildFilter(std::vector<Matcher>& vector, const char* base, int offset);
     char* truncate(char* name, int max_length);
