@@ -145,7 +145,7 @@ static int copy_dir(const char *read_dir_path, const char *write_dir_path) {
             return -1;
         } else {
             int dst_fd = open(write_dir_path, O_RDONLY);
-            if (fchmod(dst_fd, 0766) < 0) {
+            if (fchmod(dst_fd, 0777) < 0) {
                 fprintf(stderr, "[x Chmod Folder] %s\n", write_dir_path);
                 return -1;
             }
@@ -198,6 +198,8 @@ int check_copy_agent(int pid, char* srcPath, char* agentpath, char* agentname, c
     copy_file(src_so_path, dst_so_path);
 
     snprintf(agent_command, sizeof(agent_command), "/tmp/kindling/%s=%s,version=%s", agentname, command, version);
+    fprintf(stderr, "[Agent Command] %s\n", agent_command);
+
     return 0;
 }
 
