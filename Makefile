@@ -112,7 +112,7 @@ $(PACKAGE_DIR): build/$(LIB_PROFILER) build/$(JATTACH) $(FDTRANSFER_BIN) \
                 build/$(API_JAR) build/$(CONVERTER_JAR) \
                 profiler.sh LICENSE *.md
 	mkdir -p $(PACKAGE_DIR)
-	cp -RP build profiler.sh LICENSE *.md $(PACKAGE_DIR)
+	cp -RP build profiler.sh LICENSE *.md agent $(PACKAGE_DIR)
 	chmod -R 755 $(PACKAGE_DIR)
 	chmod 644 $(PACKAGE_DIR)/LICENSE $(PACKAGE_DIR)/*.md $(PACKAGE_DIR)/build/*.jar
 
