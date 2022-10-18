@@ -7,6 +7,8 @@ usage() {
     echo "  start             start profiling and return immediately"
     echo "  stop              stop profiling"
     echo "Options:"
+    echo ""
+    echo "  -e event          profiling event: cpu|lock."
     echo "  -i interval       sampling interval in nanoseconds"
     echo "  -j jstackdepth    maximum Java stack depth"
     echo ""
@@ -14,7 +16,8 @@ usage() {
     echo "      or 'jps' keyword to find running JVM automatically"
     echo "      or the application's name as it would appear in the jps tool"
     echo ""
-    echo "Example: $0 start -i 10000000 -j 20 3456"
+    echo "Example: $0 start 3456"
+    echo "         $0 start -e cpu -i 10000000 -j 20 -e lock 3456"
     echo "         $0 stop 3456"
     exit 1
 }
@@ -93,6 +96,10 @@ while [ $# -gt 0 ]; do
             ;;
         start|stop)
             ACTION="$1"
+            ;;
+        -e)
+            PARAMS="$PARAMS,event=$2"
+            shift
             ;;
         -i)
             PARAMS="$PARAMS,interval=$2"
