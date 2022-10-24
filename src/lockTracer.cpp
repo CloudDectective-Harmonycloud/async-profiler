@@ -121,23 +121,23 @@ void JNICALL LockTracer::MonitorWaited(jvmtiEnv* jvmti, JNIEnv* env, jthread thr
 }
 
 void JNICALL LockTracer::MonitorContendedEnter(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object) {
-    jlong enter_time = TSC::ticks();
+    // jlong enter_time = TSC::ticks();
     recordLockInfo(LOCK_MONITOR_ENTER, jvmti, env, thread, object, currentTimestamp());
-    jvmti->SetTag(thread, enter_time);
+    // jvmti->SetTag(thread, enter_time);
 }
 
 void JNICALL LockTracer::MonitorContendedEntered(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object) {
-    jlong entered_time = TSC::ticks();
+    // jlong entered_time = TSC::ticks();
     recordLockInfo(LOCK_MONITOR_ENTERED, jvmti, env, thread, object, currentTimestamp());
-    jlong enter_time;
-    jvmti->GetTag(thread, &enter_time);
+    // jlong enter_time;
+    // jvmti->GetTag(thread, &enter_time);
 
     // Time is meaningless if lock attempt has started before profiling
-    if (_enabled && entered_time - enter_time >= _threshold && enter_time >= _start_time) {
-        char* lock_name = getLockName(jvmti, env, object);
-        recordContendedLock(BCI_LOCK, enter_time, entered_time, lock_name, object, 0);
-        jvmti->Deallocate((unsigned char*)lock_name);
-    }
+    // if (_enabled && entered_time - enter_time >= _threshold && enter_time >= _start_time) {
+    //     char* lock_name = getLockName(jvmti, env, object);
+    //     recordContendedLock(BCI_LOCK, enter_time, entered_time, lock_name, object, 0);
+    //     jvmti->Deallocate((unsigned char*)lock_name);
+    // }
 }
 
 jint JNICALL LockTracer::RegisterNativesHook(JNIEnv* env, jclass cls, const JNINativeMethod* methods, jint nMethods) {
@@ -168,14 +168,14 @@ void JNICALL LockTracer::UnsafeParkHook(JNIEnv* env, jobject instance, jboolean 
 
     if (park_blocker != NULL) {
         recordLockInfo(LOCK_AFTER_PARK, jvmti, env, thread, park_blocker, currentTimestamp());
-        park_end_time = TSC::ticks();
-        if (park_end_time - park_start_time >= _threshold) {
-            char* lock_name = getLockName(jvmti, env, park_blocker);
-            if (lock_name == NULL || isConcurrentLock(lock_name)) {
-                recordContendedLock(BCI_PARK, park_start_time, park_end_time, lock_name, park_blocker, time);
-            }
-            jvmti->Deallocate((unsigned char*)lock_name);
-        }
+        // park_end_time = TSC::ticks();
+        // if (park_end_time - park_start_time >= _threshold) {
+        //     char* lock_name = getLockName(jvmti, env, park_blocker);
+        //     if (lock_name == NULL || isConcurrentLock(lock_name)) {
+        //         recordContendedLock(BCI_PARK, park_start_time, park_end_time, lock_name, park_blocker, time);
+        //     }
+        //     jvmti->Deallocate((unsigned char*)lock_name);
+        // }
     }
 }
 
