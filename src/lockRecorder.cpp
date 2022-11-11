@@ -1,6 +1,9 @@
 #include "lockRecorder.h"
 #include <iostream>
 
+u64 currentTimestamp();
+u64 expiredDuration = 10e9;
+
 void LockRecorder::recordLockedThread(uintptr_t lock_address, LockWaitEvent* event) {
     auto last_locked_thread_it = _locked_thread_map->find(lock_address);
     if (last_locked_thread_it == _locked_thread_map->end()) {
@@ -10,6 +13,20 @@ void LockRecorder::recordLockedThread(uintptr_t lock_address, LockWaitEvent* eve
         LockWaitEvent* lastEvent = last_locked_thread_it->second;
         delete lastEvent;
         (*_locked_thread_map)[lock_address] = event;
+    }
+    printf("Record a locked thread. The size of the locked thread map is %lu\n", _locked_thread_map->size())
+}
+
+void LockRecorder::clearLockedThread() {
+    jlong current_timestamp = currentTimestamp();
+    auto i = this->_locked_thread_map->begin();
+    while (i != this->_locked_thread_map->end()) {
+        auto event = i->second;
+        if (current_timestamp - event->_wait_timestamp > expiredDuration) {
+            i = this->_locked_thread_map->erase(i);
+        } else {
+            ++i;
+        }
     }
 }
 
@@ -37,6 +54,7 @@ void LockRecorder::updateWaitLockThread(LockWaitEvent* event) {
         threads_map = new map<jint, LockWaitEvent*>();
         threads_map->emplace(native_thread_id, event);
         _wait_lock_map->emplace(lock_address, threads_map);
+        printf("Update wait lock. Put a new threads_map to _wait_lock_map(size=%d)\n", _wait_lock_map->size());
         return;
     }
 
@@ -45,6 +63,7 @@ void LockRecorder::updateWaitLockThread(LockWaitEvent* event) {
     // No the thread_id in the map.
     if (thread_iterator == threads_map->end()) {
         threads_map->emplace(native_thread_id, event);
+        printf("Update wait lock. Put a new thread(id=%d) to threads_map(lock_address=%lx, size=%d)\n", native_thread_id, lock_address, threads_map->size());
         return;
     }
 
@@ -73,6 +92,11 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
     }
     LockWaitEvent* event = event_iterator->second;
     threads_map->erase(thread_id);
+    printf("Update wake thread. Remove a thread from map. lock_address = %lx, its thread_map size = %d, _wait_lock_map size = %d\n", lock_address, threads_map->size(), _wait_lock_map->size());
+    if (threads_map->size() == 0) {
+        _wait_lock_map->erase(lock_address);
+        delete threads_map;
+    }
     event->_wake_timestamp = wake_timestamp;
     event->_wait_duration = wake_timestamp - event->_wait_timestamp;
 
@@ -82,6 +106,12 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
         // event->print();
         event->log();
     }
+}
+
+u64 currentTimestamp() {
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (u64)ts.tv_sec * 1000000000 + ts.tv_nsec;
 }
 
 jint LockRecorder::findContendedThreads(uintptr_t lock_address, jint thread_id) {

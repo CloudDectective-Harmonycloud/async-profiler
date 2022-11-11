@@ -26,7 +26,7 @@ class LockRecorder {
 
     void updateWaitLockThread(LockWaitEvent* event);
     void updateWakeThread(uintptr_t lock_address, jint thread_id, string thread_name, jlong wake_timestamp);
-    
+    void clearLockedThread();
     // reset is used to clear the maps when the logTracer stops.
     void reset();
     bool isRecordStack() {
