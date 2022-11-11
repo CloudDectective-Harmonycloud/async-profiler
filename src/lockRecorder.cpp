@@ -100,7 +100,7 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
     event->_wake_timestamp = wake_timestamp;
     event->_wait_duration = wake_timestamp - event->_wait_timestamp;
 
-    recordLockedThread(lock_address, event);
+//    recordLockedThread(lock_address, event);
 
     if (!filter(event)) {
         // event->print();
