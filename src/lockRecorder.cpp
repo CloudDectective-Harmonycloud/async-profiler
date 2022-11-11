@@ -14,7 +14,7 @@ void LockRecorder::recordLockedThread(uintptr_t lock_address, LockWaitEvent* eve
         delete lastEvent;
         (*_locked_thread_map)[lock_address] = event;
     }
-    printf("Record a locked thread. The size of the locked thread map is %lu\n", _locked_thread_map->size())
+    printf("Record a locked thread. The size of the locked thread map is %lu\n", _locked_thread_map->size());
 }
 
 void LockRecorder::clearLockedThread() {
