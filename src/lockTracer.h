@@ -55,7 +55,6 @@ class LockTracer : public Engine {
     static void JNICALL UnsafeParkHook(JNIEnv* env, jobject instance, jboolean isAbsolute, jlong time);
 
     static jobject getParkBlocker(jvmtiEnv* jvmti, JNIEnv* env);
-    static char* getLockName(jvmtiEnv* jvmti, JNIEnv* env, jobject lock);
     static void recordLockInfo(LockEventType event_type, jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, jlong timestamp);
     static string getStackTrace(jvmtiEnv* jvmti, jthread thread, int depth);
     static bool isConcurrentLock(const char* lock_name);

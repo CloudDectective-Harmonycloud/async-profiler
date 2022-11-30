@@ -189,14 +189,6 @@ jobject LockTracer::getParkBlocker(jvmtiEnv* jvmti, JNIEnv* env) {
     return env->CallStaticObjectMethod(_LockSupport, _getBlocker, thread);
 }
 
-char* LockTracer::getLockName(jvmtiEnv* jvmti, JNIEnv* env, jobject lock) {
-    char* class_name;
-    if (jvmti->GetClassSignature(env->GetObjectClass(lock), &class_name, NULL) != 0) {
-        return NULL;
-    }
-    return class_name;
-}
-
 void LockTracer::recordLockInfo(LockEventType event_type, jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, jlong timestamp) {
     // hasStack=false;
     jvmtiThreadInfo thread_info;
@@ -221,7 +213,11 @@ void LockTracer::recordLockInfo(LockEventType event_type, jvmtiEnv* jvmti, JNIEn
         case LOCK_BEFORE_PARK:
             event_name = "UnsafeParkHookBefore";
             lock_type = "UnsafePark";
-            lock_name = getLockName(jvmti, env, object);
+            char* class_name = NULL;
+            if (jvmti->GetClassSignature(env->GetObjectClass(object), &class_name, NULL) == 0) {
+                lock_name = class_name;
+            }
+            jvmti->Deallocate((unsigned char*)class_name);
             break;
         case LOCK_MONITOR_WAITED:
             event_name = "MonitorWaited";
