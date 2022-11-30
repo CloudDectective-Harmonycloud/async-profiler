@@ -210,7 +210,7 @@ void LockTracer::recordLockInfo(LockEventType event_type, jvmtiEnv* jvmti, JNIEn
             event_name = "MonitorEnter";
             lock_type = "MonitorEnter";
             break;
-        case LOCK_BEFORE_PARK:
+        case LOCK_BEFORE_PARK: {
             event_name = "UnsafeParkHookBefore";
             lock_type = "UnsafePark";
             char* class_name = NULL;
@@ -219,6 +219,7 @@ void LockTracer::recordLockInfo(LockEventType event_type, jvmtiEnv* jvmti, JNIEn
             }
             jvmti->Deallocate((unsigned char*)class_name);
             break;
+        }
         case LOCK_MONITOR_WAITED:
             event_name = "MonitorWaited";
             break;
