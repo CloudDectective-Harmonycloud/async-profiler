@@ -84,6 +84,11 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
     }
 
     auto threads_map = wait_iterator->second;
+    if (threads_map->size() == 0) {
+        _wait_lock_map->erase(lock_address);
+        delete threads_map;
+        return;
+    }
     auto event_iterator = threads_map->find(thread_id);
     if (event_iterator == threads_map->end()) {
         // This should not happen because there should be a waited thread before it is waked.
@@ -93,10 +98,7 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
     LockWaitEvent* event = event_iterator->second;
     threads_map->erase(thread_id);
     printf("Update wake thread. Remove a thread from map. lock_address = %lx, its thread_map size = %d, _wait_lock_map size = %d\n", lock_address, threads_map->size(), _wait_lock_map->size());
-    if (threads_map->size() == 0) {
-        _wait_lock_map->erase(lock_address);
-        delete threads_map;
-    }
+
     event->_wake_timestamp = wake_timestamp;
     event->_wait_duration = wake_timestamp - event->_wait_timestamp;
 
@@ -106,6 +108,7 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
         // event->print();
         event->log();
     }
+    delete event;
 }
 
 u64 currentTimestamp() {
