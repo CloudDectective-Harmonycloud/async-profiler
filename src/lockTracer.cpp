@@ -55,6 +55,7 @@ Error LockTracer::start(Arguments& args) {
         bindUnsafePark(UnsafeParkHook);
     }
 
+    _lockRecorder->startClearLockedThreadTask();
     return Error::OK;
 }
 
@@ -71,6 +72,7 @@ void LockTracer::stop() {
         bindUnsafePark(_orig_Unsafe_park);
     }
     if (_lockRecorder != NULL) {
+        _lockRecorder->endClearLockedThreadTask();
         _lockRecorder->reset();
     }
 }
