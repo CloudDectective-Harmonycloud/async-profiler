@@ -1,5 +1,24 @@
+/*
+ * Copyright 2022 The Kindling Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "lockRecorder.h"
 #include <iostream>
+#include "timeUtil.h"
+
+u64 expiredDuration = 30e9;
 
 void LockRecorder::recordLockedThread(uintptr_t lock_address, LockWaitEvent* event) {
     auto last_locked_thread_it = _locked_thread_map->find(lock_address);
@@ -13,8 +32,31 @@ void LockRecorder::recordLockedThread(uintptr_t lock_address, LockWaitEvent* eve
     }
 }
 
+void LockRecorder::clearLockedThread() {
+    jlong current_timestamp = getCurrentTimestamp();
+    lock_guard<mutex> lock(_mutex);
+    auto i = this->_locked_thread_map->begin();
+    while (i != this->_locked_thread_map->end()) {
+        auto event = i->second;
+        // Check if there is a thread waiting to lock it.
+        auto lock_address = i->first;
+        auto wait_lock_thread_it = _wait_lock_map->find(lock_address);
+        // We never remove the events if there is a thread waiting for.
+        if (wait_lock_thread_it != _wait_lock_map->end()) {
+            ++i;
+            continue;
+        }
+        if (current_timestamp - event->_wait_timestamp > expiredDuration) {
+            delete i->second;
+            i = this->_locked_thread_map->erase(i);
+        } else {
+            ++i;
+        }
+    }
+}
+
 bool isConcurrentLock(const string lock_name) {
-    // Do not count synchronizers other than ReentrantLock, ReentrantReadWriteLock and Semaphore
+    // Do not count synchronizers other than ReentrantLock, ReentrantReadWriteLock
     return lock_name == "Ljava/util/concurrent/locks/ReentrantLock" ||
            lock_name == "Ljava/util/concurrent/locks/ReentrantReadWriteLock";
 }
@@ -23,8 +65,8 @@ bool isConcurrentLock(const string lock_name) {
 void LockRecorder::updateWaitLockThread(LockWaitEvent* event) {
     uintptr_t lock_address = event->_lock_object_address;
     jint native_thread_id = event->_native_thread_id;
-    bool notConcurrentLock = event->_lock_type == "UnsafePark" && !isConcurrentLock(event->_lock_name);
-    if (!notConcurrentLock) {
+    bool concurrentLock = event->_lock_type != "UnsafePark" || isConcurrentLock(event->_lock_name);
+    if (concurrentLock) {
         jint locked_thread = findContendedThreads(lock_address, native_thread_id);
         event->_wait_thread_id = locked_thread;
     }
@@ -73,6 +115,10 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
     }
     LockWaitEvent* event = event_iterator->second;
     threads_map->erase(thread_id);
+    if (threads_map->size() == 0) {
+        _wait_lock_map->erase(lock_address);
+        delete threads_map;
+    }
     event->_wake_timestamp = wake_timestamp;
     event->_wait_duration = wake_timestamp - event->_wait_timestamp;
 
@@ -108,6 +154,7 @@ inline bool filter(LockWaitEvent* event) {
 }
 
 void LockRecorder::reset() {
+    lock_guard<mutex> lock(_mutex);
     for (auto it = _locked_thread_map->begin(); it != _locked_thread_map->end(); it++) {
         auto event = it->second;
         delete event;
@@ -122,4 +169,21 @@ void LockRecorder::reset() {
         delete thread_map;
     }
     _wait_lock_map->clear();
+}
+
+void LockRecorder::startClearLockedThreadTask() {
+    _clear_map_task = new ClearMapTask(this);
+    _clear_map_thread = std::thread([&]{
+        VM::attachThread("AsyncProfiler-Lock-Clearer");
+        _clear_map_task->run();
+        VM::detachThread();
+    });
+}
+void LockRecorder::endClearLockedThreadTask() {
+    if (_clear_map_task != NULL) {
+        _clear_map_task->stop();
+        _clear_map_thread.join();
+        delete _clear_map_task;
+        _clear_map_task = NULL;
+    }
 }
