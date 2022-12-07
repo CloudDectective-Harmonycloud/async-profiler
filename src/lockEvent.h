@@ -9,7 +9,6 @@
 #include "eventLogger.h"
 
 const char* JAVA_LOCK_WAIT_EVENT = "java_lock_wait_event";
-
 struct LockWaitEvent {
     LockWaitEvent(
         jint thread_id, 
