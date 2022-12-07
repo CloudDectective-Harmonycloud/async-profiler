@@ -1064,7 +1064,7 @@ Error Profiler::start(Arguments& args, bool reset) {
     _thread_filter.init(args._filter);
     _update_thread_names_task = new UpdateThreadNamesTask(this);
     _update_thread_names_thread = std::thread([&]{
-        VM::attachThread("Async-profiler Threads Dump");
+        VM::attachThread("AsyncProfiler-Threads-Dump");
         _update_thread_names_task->run();
         VM::detachThread();
     });

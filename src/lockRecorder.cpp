@@ -174,7 +174,7 @@ void LockRecorder::reset() {
 void LockRecorder::startClearLockedThreadTask() {
     _clear_map_task = new ClearMapTask(this);
     _clear_map_thread = std::thread([&]{
-        VM::attachThread("lock-recorder-clear-map");
+        VM::attachThread("AsyncProfiler-Lock-Clearer");
         _clear_map_task->run();
         VM::detachThread();
     });
