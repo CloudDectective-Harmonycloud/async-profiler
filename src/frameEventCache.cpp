@@ -2,17 +2,12 @@
 #include "arch.h"
 #include <string.h>
 #include "eventLogger.h"
+#include "timeUtil.h"
 
 using namespace std;
 
 static const int MAX_SIZE = 4096;
 static const int MAX_DEPTH = 128;
-
-static u64 getCurrentTimestamp() {
-    struct timespec ts;
-    timespec_get(&ts, TIME_UTC);
-    return (u64)ts.tv_sec * 1000000000 + ts.tv_nsec;
-}
 
 FrameEvent::FrameEvent(int depth) : _thread_id(0), _timestamp(0), _num_frames(0) {
     _frames = new ASGCT_CallFrame[depth];

@@ -22,6 +22,7 @@
 #include "profiler.h"
 #include "tsc.h"
 #include "vmStructs.h"
+#include "timeUtil.h"
 
 double LockTracer::_ticks_to_nanos;
 jlong LockTracer::_threshold;
@@ -115,22 +116,22 @@ void LockTracer::initialize() {
 }
 
 void JNICALL LockTracer::MonitorWait(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, jlong timeout) {
-    recordLockInfo(LOCK_MONITOR_WAIT, jvmti, env, thread, object, currentTimestamp());
+    recordLockInfo(LOCK_MONITOR_WAIT, jvmti, env, thread, object, getCurrentTimestamp());
 }
 
 void JNICALL LockTracer::MonitorWaited(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object, jboolean timed_out) {
-    recordLockInfo(LOCK_MONITOR_WAITED, jvmti, env, thread, object, currentTimestamp());
+    recordLockInfo(LOCK_MONITOR_WAITED, jvmti, env, thread, object, getCurrentTimestamp());
 }
 
 void JNICALL LockTracer::MonitorContendedEnter(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object) {
     // jlong enter_time = TSC::ticks();
-    recordLockInfo(LOCK_MONITOR_ENTER, jvmti, env, thread, object, currentTimestamp());
+    recordLockInfo(LOCK_MONITOR_ENTER, jvmti, env, thread, object, getCurrentTimestamp());
     // jvmti->SetTag(thread, enter_time);
 }
 
 void JNICALL LockTracer::MonitorContendedEntered(jvmtiEnv* jvmti, JNIEnv* env, jthread thread, jobject object) {
     // jlong entered_time = TSC::ticks();
-    recordLockInfo(LOCK_MONITOR_ENTERED, jvmti, env, thread, object, currentTimestamp());
+    recordLockInfo(LOCK_MONITOR_ENTERED, jvmti, env, thread, object, getCurrentTimestamp());
     // jlong enter_time;
     // jvmti->GetTag(thread, &enter_time);
 
@@ -163,13 +164,13 @@ void JNICALL LockTracer::UnsafeParkHook(JNIEnv* env, jobject instance, jboolean 
     if (park_blocker != NULL) {
         park_start_time = TSC::ticks();
         jvmti->GetCurrentThread(&thread);
-        recordLockInfo(LOCK_BEFORE_PARK, jvmti, env, thread, park_blocker, currentTimestamp());
+        recordLockInfo(LOCK_BEFORE_PARK, jvmti, env, thread, park_blocker, getCurrentTimestamp());
     }
 
     _orig_Unsafe_park(env, instance, isAbsolute, time);
 
     if (park_blocker != NULL) {
-        recordLockInfo(LOCK_AFTER_PARK, jvmti, env, thread, park_blocker, currentTimestamp());
+        recordLockInfo(LOCK_AFTER_PARK, jvmti, env, thread, park_blocker, getCurrentTimestamp());
         // park_end_time = TSC::ticks();
         // if (park_end_time - park_start_time >= _threshold) {
         //     char* lock_name = getLockName(jvmti, env, park_blocker);
@@ -314,10 +315,4 @@ void LockTracer::bindUnsafePark(UnsafeParkFunc entry) {
     if (env->RegisterNatives(_UnsafeClass, &park, 1) != 0) {
         env->ExceptionClear();
     }
-}
-
-u64 LockTracer::currentTimestamp() {
-    struct timespec ts;
-    timespec_get(&ts, TIME_UTC);
-    return (u64)ts.tv_sec * 1000000000 + ts.tv_nsec;
 }

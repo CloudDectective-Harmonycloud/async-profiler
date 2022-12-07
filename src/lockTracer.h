@@ -61,8 +61,6 @@ class LockTracer : public Engine {
     static void recordContendedLock(int event_type, u64 start_time, u64 end_time,
                                     const char* lock_name, jobject lock, jlong timeout);
     static void bindUnsafePark(UnsafeParkFunc entry);
-
-    static u64 currentTimestamp();
   public:
     const char* title() {
         return "Lock profile";

@@ -1,7 +1,23 @@
+/*
+ * Copyright 2022 The Kindling Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "lockRecorder.h"
 #include <iostream>
+#include "timeUtil.h"
 
-u64 currentTimestamp();
 u64 expiredDuration = 30e9;
 
 void LockRecorder::recordLockedThread(uintptr_t lock_address, LockWaitEvent* event) {
@@ -17,7 +33,7 @@ void LockRecorder::recordLockedThread(uintptr_t lock_address, LockWaitEvent* eve
 }
 
 void LockRecorder::clearLockedThread() {
-    jlong current_timestamp = currentTimestamp();
+    jlong current_timestamp = getCurrentTimestamp();
     lock_guard<mutex> lock(_mutex);
     auto i = this->_locked_thread_map->begin();
     while (i != this->_locked_thread_map->end()) {
@@ -112,12 +128,6 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
         // event->print();
         event->log();
     }
-}
-
-u64 currentTimestamp() {
-    struct timespec ts;
-    timespec_get(&ts, TIME_UTC);
-    return (u64)ts.tv_sec * 1000000000 + ts.tv_nsec;
 }
 
 jint LockRecorder::findContendedThreads(uintptr_t lock_address, jint thread_id) {
