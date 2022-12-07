@@ -31,12 +31,10 @@ struct LockWaitEvent {
         _wait_duration(0),
         _wait_thread_id(0) {
         lock_event_count++;
-        printf("lock_event_count++=%ld\n", lock_event_count);
     } 
 
     ~LockWaitEvent() {
         lock_event_count--;
-        printf("lock_event_count--=%ld\n", lock_event_count);
     }
 
     std::string _event_name = JAVA_LOCK_WAIT_EVENT;

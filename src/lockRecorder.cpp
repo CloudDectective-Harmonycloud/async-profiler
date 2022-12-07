@@ -14,7 +14,6 @@ void LockRecorder::recordLockedThread(uintptr_t lock_address, LockWaitEvent* eve
         delete lastEvent;
         (*_locked_thread_map)[lock_address] = event;
     }
-    printf("Record a locked thread. The size of the locked thread map is %lu\n", _locked_thread_map->size());
 }
 
 void LockRecorder::clearLockedThread() {
@@ -38,7 +37,6 @@ void LockRecorder::clearLockedThread() {
             ++i;
         }
     }
-    printf("Clear the _locked_thread_map, the final size = %d\n", _locked_thread_map->size());
 }
 
 bool isConcurrentLock(const string lock_name) {
@@ -65,7 +63,6 @@ void LockRecorder::updateWaitLockThread(LockWaitEvent* event) {
         threads_map = new map<jint, LockWaitEvent*>();
         threads_map->emplace(native_thread_id, event);
         _wait_lock_map->emplace(lock_address, threads_map);
-        printf("Update wait lock. Put a new threads_map to _wait_lock_map(size=%d)\n", _wait_lock_map->size());
         return;
     }
 
@@ -74,7 +71,6 @@ void LockRecorder::updateWaitLockThread(LockWaitEvent* event) {
     // No the thread_id in the map.
     if (thread_iterator == threads_map->end()) {
         threads_map->emplace(native_thread_id, event);
-        printf("Update wait lock. Put a new thread(id=%d) to threads_map(lock_address=%lx, size=%d)\n", native_thread_id, lock_address, threads_map->size());
         return;
     }
 
@@ -90,7 +86,7 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
     auto wait_iterator = _wait_lock_map->find(lock_address);
     if (wait_iterator == _wait_lock_map->end()) {
         // This should not happen because there should be a same lock.
-        printf("[WARN] There is no the same lock. lock_address=%lu, thread_id=%d, thread_name=%s.\n", lock_address, thread_id, thread_name.data());
+        // printf("[WARN] There is no the same lock. lock_address=%lu, thread_id=%d, thread_name=%s.\n", lock_address, thread_id, thread_name.data());
         return;
     }
 
@@ -98,12 +94,11 @@ void LockRecorder::updateWakeThread(uintptr_t lock_address, jint thread_id, stri
     auto event_iterator = threads_map->find(thread_id);
     if (event_iterator == threads_map->end()) {
         // This should not happen because there should be a waited thread before it is waked.
-        printf("[WARN] There is no the same thread waiting to be waked. thread_id=%d, thread_name=%s.\n", thread_id, thread_name.data());
+        // printf("[WARN] There is no the same thread waiting to be waked. thread_id=%d, thread_name=%s.\n", thread_id, thread_name.data());
         return;
     }
     LockWaitEvent* event = event_iterator->second;
     threads_map->erase(thread_id);
-    printf("Update wake thread. Remove a thread from map. lock_address = %lx, its thread_map size = %d, _wait_lock_map size = %d\n", lock_address, threads_map->size(), _wait_lock_map->size());
     if (threads_map->size() == 0) {
         _wait_lock_map->erase(lock_address);
         delete threads_map;
