@@ -250,14 +250,6 @@ void LockTracer::recordLockInfo(LockEventType event_type, jvmtiEnv* jvmti, JNIEn
             _lockRecorder->updateWakeThread(*(uintptr_t*)object, native_thread_id, thread_info.name, timestamp);
             break;
     }
-    // char* lock_name = getLockName(jvmti, env, object);
-    // timespec ts;
-    // timespec_get(&ts, TIME_UTC);
-    // char buff[100];
-    // strftime(buff, sizeof buff, "%D %T", std::gmtime(&ts.tv_sec));
-    // printf("%s.%09ld UTC %s: threadName=%s, javaThreadId=%ld, nativeThreadId=%d, lockName=%s\n", buff,
-    // ts.tv_nsec, event_name.data(), thread_info.name, java_thread_id, native_thread_id, lock_name);
-    // jvmti->Deallocate((unsigned char*)lock_name);
 
     jvmti->Deallocate((unsigned char*)thread_info.name);
 }
@@ -270,9 +262,9 @@ string LockTracer::getStackTrace(jvmtiEnv* jvmti, jthread thread, int depth) {
     err = jvmti->GetStackTrace(thread, 0, depth, frames, &count);
     if (err == JVMTI_ERROR_NONE && count >= 1) {
         for (int i=0; i < count; i++) {
-            char *method_name;
-            char *signature;
-            err = jvmti->GetMethodName(frames[i].method, &method_name, &signature, NULL);
+            char *method_name = NULL;
+            char *signature = NULL;
+            err = jvmti->GetMethodName(frames[i].method, &method_name, NULL, NULL);
             if (err == JVMTI_ERROR_NONE) {
                 jclass declaring_class;
                 err = jvmti->GetMethodDeclaringClass(frames[i].method, &declaring_class);
