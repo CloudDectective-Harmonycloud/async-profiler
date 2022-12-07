@@ -10,7 +10,6 @@
 
 const char* JAVA_LOCK_WAIT_EVENT = "java_lock_wait_event";
 
-static long lock_event_count = 0;
 struct LockWaitEvent {
     LockWaitEvent(
         jint thread_id, 
@@ -30,11 +29,9 @@ struct LockWaitEvent {
         _wake_timestamp(0),
         _wait_duration(0),
         _wait_thread_id(0) {
-        lock_event_count++;
     } 
 
     ~LockWaitEvent() {
-        lock_event_count--;
     }
 
     std::string _event_name = JAVA_LOCK_WAIT_EVENT;
