@@ -1,11 +1,13 @@
-PROFILER_VERSION=2.8.3
+PROFILER_VERSION=1.0.2
 
-PACKAGE_NAME=async-profiler-$(PROFILER_VERSION)-$(OS_TAG)-$(ARCH_TAG)
+PACKAGE_TAR_NAME=async-profiler-$(PROFILER_VERSION)-$(OS_TAG)-$(ARCH_TAG)
+PACKAGE_NAME=async-profiler-$(PROFILER_VERSION)
 PACKAGE_DIR=/tmp/$(PACKAGE_NAME)
 
 LIB_PROFILER=libasyncProfiler.$(SOEXT)
 LIB_PROFILER_SO=libasyncProfiler.so
 JATTACH=jattach
+JCOPY=jcopy
 API_JAR=async-profiler.jar
 CONVERTER_JAR=converter.jar
 
@@ -42,7 +44,7 @@ ifeq ($(OS),Darwin)
     FAT_BINARY_FLAGS=-arch x86_64 -arch arm64 -mmacos-version-min=10.12
     CFLAGS += $(FAT_BINARY_FLAGS)
     CXXFLAGS += $(FAT_BINARY_FLAGS)
-    PACKAGE_NAME=async-profiler-$(PROFILER_VERSION)-$(OS_TAG)
+    PACKAGE_TAR_NAME=async-profiler-$(PROFILER_VERSION)-$(OS_TAG)
     MERGE=false
   endif
 else
@@ -95,24 +97,24 @@ endif
 
 .PHONY: all release test clean
 
-all: build build/$(LIB_PROFILER) build/$(JATTACH) $(FDTRANSFER_BIN) build/$(API_JAR) build/$(CONVERTER_JAR)
+all: build build/$(LIB_PROFILER) build/$(JATTACH) build/$(JCOPY) $(FDTRANSFER_BIN) build/$(API_JAR) build/$(CONVERTER_JAR)
 
-release: build $(PACKAGE_NAME).$(PACKAGE_EXT)
+release: build $(PACKAGE_TAR_NAME).$(PACKAGE_EXT)
 
-$(PACKAGE_NAME).tar.gz: $(PACKAGE_DIR)
+$(PACKAGE_TAR_NAME).tar.gz: $(PACKAGE_DIR)
 	tar czf $@ -C $(PACKAGE_DIR)/.. $(PACKAGE_NAME)
 	rm -r $(PACKAGE_DIR)
 
-$(PACKAGE_NAME).zip: $(PACKAGE_DIR)
-	codesign -s "Developer ID" -o runtime --timestamp -v $(PACKAGE_DIR)/build/$(JATTACH) $(PACKAGE_DIR)/build/$(LIB_PROFILER_SO)
+$(PACKAGE_TAR_NAME).zip: $(PACKAGE_DIR)
+	codesign -s "Developer ID" -o runtime --timestamp -v $(PACKAGE_DIR)/build/$(JATTACH) $(PACKAGE_DIR)/build/$(JCOPY) $(PACKAGE_DIR)/build/$(LIB_PROFILER_SO)
 	ditto -c -k --keepParent $(PACKAGE_DIR) $@
 	rm -r $(PACKAGE_DIR)
 
-$(PACKAGE_DIR): build/$(LIB_PROFILER) build/$(JATTACH) $(FDTRANSFER_BIN) \
+$(PACKAGE_DIR): build/$(LIB_PROFILER) build/$(JATTACH) build/$(JCOPY) $(FDTRANSFER_BIN) \
                 build/$(API_JAR) build/$(CONVERTER_JAR) \
-                profiler.sh LICENSE *.md
+                profiler.sh jattach.sh LICENSE *.md
 	mkdir -p $(PACKAGE_DIR)
-	cp -RP build profiler.sh LICENSE *.md agent $(PACKAGE_DIR)
+	cp -RP build profiler.sh jattach.sh LICENSE *.md $(PACKAGE_DIR)
 	chmod -R 755 $(PACKAGE_DIR)
 	chmod 644 $(PACKAGE_DIR)/LICENSE $(PACKAGE_DIR)/*.md $(PACKAGE_DIR)/build/*.jar
 
@@ -133,6 +135,9 @@ endif
 
 build/$(JATTACH): src/jattach/*.c src/jattach/*.h
 	$(CC) $(CFLAGS) -DJATTACH_VERSION=\"$(PROFILER_VERSION)-ap\" -o $@ src/jattach/*.c
+
+build/$(JCOPY): src/jcopy/*.c src/jcopy/*.h
+	$(CXX) $(CFLAGS) -o $@ src/jcopy/*.c
 
 build/fdtransfer: src/fdtransfer/*.cpp src/fdtransfer/*.h src/jattach/psutil.c src/jattach/psutil.h
 	$(CXX) $(CFLAGS) -o $@ src/fdtransfer/*.cpp src/jattach/psutil.c

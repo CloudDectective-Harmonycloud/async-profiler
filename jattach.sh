@@ -2,22 +2,16 @@
 set -eu
 
 usage() {
-    echo "Usage: $0 [action] [options] <pid>"
+    echo "Usage: $0 [action] <pid>"
     echo "Actions:"
-    echo "  start             start profiling and return immediately"
-    echo "  stop              stop profiling"
-    echo "Options:"
-    echo ""
-    echo "  -e event          profiling event: cpu|lock."
-    echo "  -i interval       sampling interval in nanoseconds"
-    echo "  -j jstackdepth    maximum Java stack depth"
+    echo "  start             start agent and return immediately"
+    echo "  stop              stop agent"
     echo ""
     echo "<pid> is a numeric process ID of the target JVM"
     echo "      or 'jps' keyword to find running JVM automatically"
     echo "      or the application's name as it would appear in the jps tool"
     echo ""
     echo "Example: $0 start 3456"
-    echo "         $0 start -e cpu -i 10000000 -j 20 -e lock 3456"
     echo "         $0 stop 3456"
     exit 1
 }
@@ -56,7 +50,6 @@ check_if_terminated() {
 
 jcopy() {
     "$JCOPY" "$PID" "$SRC_DIR" "$DST_DIR"
-    "$JCOPY" "$PID" "$PROFILER" "$DST_PROFILER"
 }
 
 jattach() {
@@ -71,7 +64,7 @@ jattach() {
     # Check if jattach failed
     if [ $RET -ne 0 ]; then
         if [ $RET -eq 255 ]; then
-            echo "Failed to inject profiler into $PID"
+            echo "Failed to inject agent into $PID"
         fi
 
         mirror_log
@@ -89,18 +82,14 @@ while [ -h "$SCRIPT_BIN" ]; do
 done
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_BIN")" > /dev/null 2>&1; pwd -P)"
 
-AGENT_VERSION=1.0.2
 JATTACH=$SCRIPT_DIR/build/jattach
 JCOPY=$SCRIPT_DIR/build/jcopy
-AGENT_JAR=agent-boot.jar
-SRC_DIR=/app/agent/kindling-java
+AGENT_JAR=apm-all.jar
+SRC_DIR=/app/agent/apm-all
 DST_DIR=/tmp/kindling
-PROFILER=$SCRIPT_DIR/build/libasyncProfiler.so
-DST_PROFILER=$DST_DIR/$AGENT_VERSION/libasyncProfiler.so
 ACTION="start"
 FILE=""
 USE_TMP="true"
-PARAMS=""
 PID=""
 
 while [ $# -gt 0 ]; do
@@ -110,18 +99,6 @@ while [ $# -gt 0 ]; do
             ;;
         start|stop)
             ACTION="$1"
-            ;;
-        -e)
-            PARAMS="$PARAMS,event=$2"
-            shift
-            ;;
-        -i)
-            PARAMS="$PARAMS,interval=$2"
-            shift
-            ;;
-        -j)
-            PARAMS="$PARAMS,jstackdepth=$2"
-            shift
             ;;
         [0-9]*)
             PID="$1"
@@ -158,7 +135,7 @@ fi
 # If no -f argument is given, use temporary file to transfer output to caller terminal.
 # Let the target process create the file in case this script is run by superuser.
 if [ "$USE_TMP" = true ]; then
-    FILE=/tmp/async-profiler.$$.$PID
+    FILE=/tmp/jattach.$$.$PID
 else
     case "$FILE" in
         /*)
@@ -170,7 +147,7 @@ else
             ;;
     esac
 fi
-LOG=/tmp/async-profiler-log.$$.$PID
+LOG=/tmp/jattach-log.$$.$PID
 
 UNAME_S=$(uname -s)
 if [ "$UNAME_S" = "Linux" ]; then
@@ -182,7 +159,7 @@ fi
 case $ACTION in
     start)
         jcopy
-        jattach "$ACTION,version=$AGENT_VERSION,file=$FILE$PARAMS"
+        jattach "$ACTION,file=$FILE"
         ;;
     stop)
         jattach "$ACTION,file=$FILE"

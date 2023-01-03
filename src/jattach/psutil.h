@@ -22,10 +22,6 @@
 
 #define MAX_PATH 1024
 extern char tmp_path[];
-extern char agent_command[];
-
-int check_copy_agent(int pid, char* srcpath, char* agentpath, char* agentname, char* soname, char* command);
-
 
 // Gets /tmp path of the specified process, as it can be accessed from the host.
 // The obtained path is stored in the global tmp_path buffer.

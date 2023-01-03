@@ -15,19 +15,19 @@
  */
 
 #include <stdio.h>
-#include <libgen.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
 #include "psutil.h"
-#include <string.h>
+
 
 extern int is_openj9_process(int pid);
 extern int jattach_openj9(int pid, int nspid, int argc, char** argv);
 extern int jattach_hotspot(int pid, int nspid, int argc, char** argv);
 
+
 __attribute__((visibility("default")))
-int jattach(char* binary_path, int pid, char* agent_jar_path, char* so_name, int argc, char** argv) {
+int jattach(int pid, int argc, char** argv) {
     uid_t my_uid = geteuid();
     gid_t my_gid = getegid();
     uid_t target_uid = my_uid;
@@ -35,11 +35,6 @@ int jattach(char* binary_path, int pid, char* agent_jar_path, char* so_name, int
     int nspid;
     if (get_process_info(pid, &target_uid, &target_gid, &nspid) < 0) {
         fprintf(stderr, "Process %d not found\n", pid);
-        return 1;
-    }
-
-    // Copy Before Enter Ns
-    if (check_copy_agent(pid, dirname(binary_path), dirname(agent_jar_path), basename(agent_jar_path), so_name, argv[3]) < 0) {
         return 1;
     }
 
@@ -62,8 +57,6 @@ int jattach(char* binary_path, int pid, char* agent_jar_path, char* so_name, int
     // Make write() return EPIPE instead of abnormal process termination
     signal(SIGPIPE, SIG_IGN);
 
-    // Replace agent location.
-    argv[3] = agent_command;
     if (is_openj9_process(nspid)) {
         return jattach_openj9(pid, nspid, argc, argv);
     } else {
@@ -71,12 +64,18 @@ int jattach(char* binary_path, int pid, char* agent_jar_path, char* so_name, int
     }
 }
 
+#ifdef JATTACH_VERSION
+
 int main(int argc, char** argv) {
-    if (argc < 5) {
+    if (argc < 3) {
         printf("jattach " JATTACH_VERSION " built on " __DATE__ "\n"
                "Copyright 2021 Andrei Pangin\n"
                "\n"
-               "Usage: jattach <pid> <agent_jar> <libasyncProfiler.so> <cmd> [args ...]\n"
+               "Usage: jattach <pid> <cmd> [args ...]\n"
+               "\n"
+               "Commands:\n"
+               "    load  threaddump   dumpheap  setflag    properties\n"
+               "    jcmd  inspectheap  datadump  printflag  agentProperties\n"
                );
         return 1;
     }
@@ -87,5 +86,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    return jattach(argv[0], pid, argv[2], argv[3], argc - 4, argv + 4);
+    return jattach(pid, argc - 2, argv + 2);
 }
+
+#endif // JATTACH_VERSION
