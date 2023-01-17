@@ -33,10 +33,10 @@ mirror_log() {
     # Try to access the log file both directly and through /proc/[pid]/root,
     # in case the target namespace differs
     if [ -f "$LOG" ]; then
-        cat "$LOG" >&2
+        cat "$LOG"
         rm "$LOG"
     elif [ -f "$ROOT_PREFIX$LOG" ]; then
-        cat "$ROOT_PREFIX$LOG" >&2
+        cat "$ROOT_PREFIX$LOG"
         rm "$ROOT_PREFIX$LOG"
     fi
 }
