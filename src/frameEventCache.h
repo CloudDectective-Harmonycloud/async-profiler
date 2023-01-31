@@ -3,6 +3,7 @@
 
 #include "vmEntry.h"
 #include "frameName.h"
+#include "stoppableTask.h"
 
 class FrameEvent {
     private:
@@ -34,15 +35,44 @@ class FrameEventList {
 
 typedef FrameEventList* P_FrameEventList;
 
+class CollectFrameEventTask;
+
 class FrameEventCache {
     private:
         P_FrameEventList* _list;
         volatile int _write_index;
+
+        CollectFrameEventTask* _collect_frame_task;
+        std::thread _collect_frame_thread;
+
+        friend class CollectFrameEventTask;
     public:
         FrameEventCache();
         ~FrameEventCache();
 
         void add(jint thread_id, int num_frames, ASGCT_CallFrame* frames);
         void collect(FrameName* fn);
+        void startCollectThreadTask(FrameName* fn, long interval);
+        void endCollectThreadTask();
+};
+
+class CollectFrameEventTask: public Stoppable {
+    public:
+        CollectFrameEventTask(FrameEventCache* cache, FrameName* fn, long interval) {
+            this->cache = cache;
+            this->fn = fn;
+            this->intervalMs = interval / 1000000;
+        }
+
+        void run() {
+            while (stopRequested() == false) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(intervalMs));
+                cache->collect(fn);
+            }
+        }
+    private:
+        FrameEventCache* cache;
+        FrameName* fn;
+        long intervalMs;
 };
 #endif // _FRAME_EVENT_CACHE_H

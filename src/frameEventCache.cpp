@@ -105,3 +105,22 @@ void FrameEventCache::collect(FrameName* fn) {
     _write_index = 1 - _write_index;
     list->log(fn);
 }
+
+void FrameEventCache::startCollectThreadTask(FrameName* fn, long interval) {
+    _collect_frame_task = new CollectFrameEventTask(this, fn, interval);
+    _collect_frame_thread = std::thread([&]{
+        VM::attachThread("AsyncProfiler-Collect-Cpu");
+        _collect_frame_task->run();
+        VM::detachThread();
+    });
+}
+
+void FrameEventCache::endCollectThreadTask() {
+    fprintf(stderr, "[End Task] %s \n", "endCollectThreadTask");
+    if (_collect_frame_task != NULL) {
+        _collect_frame_task->stop();
+        _collect_frame_thread.join();
+        delete _collect_frame_task;
+        _collect_frame_task = NULL;        
+    }
+}

@@ -164,7 +164,6 @@ class Profiler {
     void dumpCollapsed(std::ostream& out, Arguments& args);
     void dumpFlameGraph(std::ostream& out, Arguments& args, bool tree);
     void dumpText(std::ostream& out, Arguments& args);
-    Error printDevNull();
 
     static Profiler* const _instance;
 

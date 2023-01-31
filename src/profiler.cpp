@@ -1118,6 +1118,9 @@ Error Profiler::start(Arguments& args, bool reset) {
             goto error3;
         }
     }
+    if (_event_mask & EM_CPU) {
+        _frameCache.startCollectThreadTask(_frameName, args._interval ? args._interval : DEFAULT_INTERVAL);
+    }
 
     switchThreadEvents(JVMTI_ENABLE);
 
@@ -1159,6 +1162,7 @@ Error Profiler::stop() {
 
     if (_event_mask & EM_LOCK) lock_tracer.stop();
     if (_event_mask & EM_ALLOC) _alloc_engine->stop();
+    if (_event_mask & EM_CPU) _frameCache.endCollectThreadTask();
 
     _engine->stop();
 
@@ -1455,19 +1459,6 @@ void Profiler::dumpText(std::ostream& out, Arguments& args) {
     }
 }
 
-Error Profiler::printDevNull() {
-    MutexLocker ml(_state_lock);
-    // Open output file under the lock to avoid races with background timer
-    if (_state != IDLE && _state != RUNNING) {
-        return Error("Profiler has not started");
-    }
-    lockAll();
-
-    _frameCache.collect(_frameName);
-    unlockAll();
-    return Error::OK;
-}
-
 time_t Profiler::addTimeout(time_t start, int timeout) {
     if (timeout == 0) {
         return (time_t)0x7fffffff;
@@ -1588,13 +1579,6 @@ Error Profiler::runInternal(Arguments& args, std::ostream& out) {
                 return error;
             }
             break;
-        }
-        case ACTION_PRINT: {
-            Error error = printDevNull();
-            if (error) {
-                return error;
-            }
-            return Error::OK;
         }
         case ACTION_CHECK: {
             Error error = check(args);
